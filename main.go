@@ -14,6 +14,7 @@ func main() {
 		time.Sleep(200 * time.Millisecond)
 		fmt.Fprintf(w, "Hello world! %s\n", ending)
 	})
+	//
 
 	fmt.Print("Listening on port 8080\n")
 	http.ListenAndServe(":8080", nil)
