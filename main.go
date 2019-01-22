@@ -4,12 +4,14 @@ import (
 	"fmt"
 	// "io/ioutil"
 	"net/http"
+	"time"
 )
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// body, _ := ioutil.ReadAll(r.Body)
 		// fmt.Printf("URL: %s\nBody: %v\n", r.URL, string(body))
+		time.Sleep(100 * time.Millisecond)
 		fmt.Fprintf(w, "Hello world!\n")
 	})
 
