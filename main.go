@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
 func main() {
-	endings := os.Getenv("ENDING")
+	ending := os.Getenv("ENDING")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1 * time.Second)
 		fmt.Fprintf(w, "Hello world!%s\n", ending)
