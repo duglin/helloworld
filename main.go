@@ -11,7 +11,7 @@ func main() {
 	ending := os.Getenv("ENDING")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// time.Sleep(1 * time.Second)
-		time.Sleep(200 * time.Miilisecond)
+		time.Sleep(200 * time.Millisecond)
 		fmt.Fprintf(w, "Hello world! %s\n", ending)
 	})
 
