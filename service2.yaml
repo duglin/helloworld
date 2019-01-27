@@ -22,8 +22,6 @@ spec:
             - --dockerfile=/workspace/Dockerfile
             - --destination=index.docker.io/${APP_IMAGE}
             image: gcr.io/kaniko-project/executor
-            name: build-and-push
-            resources: {}
       revisionTemplate:
         metadata:
           annotations:

@@ -9,6 +9,6 @@ kubectl delete \
 
 rm -f cmds out
 
-sed -i 's/\(^.*Fprintf.*"\)[^"]*\(".*$\)/\1Hello World!\\n\2/' helloworld.go
+sed -i 's/text :=.*/text := "Hello World!"/' helloworld.go
 git add helloworld.go && git commit -s -m "clean" && git push origin master 
 make
