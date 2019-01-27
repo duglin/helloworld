@@ -8,7 +8,11 @@ CLUSTER=${1:-${KUBECONFIG##*-}}
 CLUSTER=${CLUSTER%.yml}
 TMPFILE=/tmp/pods-tmp${RANDOM}
 
-rm -f /tmp/pods-tmp*
+function finish {
+  rm -f "${TMPFILE}"
+}
+trap finish EXIT
+
 while true ; do
 	echo -e "Cluster: ${CLUSTER}\\n" > $TMPFILE
 

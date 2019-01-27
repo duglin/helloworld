@@ -11,9 +11,9 @@ echo
 
 # Get the service's yaml, tweak it then 'apply' it
 kubectl get ksvc/helloworld -o yaml > yaml
-grep gitsha yaml
-sed -i "s/gitsha.*/gitsha=$RANDOM/" yaml
-grep gitsha yaml
+grep trigger yaml
+sed -i "s/\(trigger\).*/\1: \"$(date +%s)\"/" yaml
+grep trigger yaml
 kubectl apply -f yaml
 
 # Show the results
