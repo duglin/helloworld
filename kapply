@@ -2,11 +2,13 @@
 
 set -e
 
+TMPFILE=kapply-tmp${RANDOM}
+
 while [[ -n "${1}" ]]; do
     file="${1}"
     shift
 
-    rm -f tmpfile
+    rm -f "${TMPFILE}
     IFS=''
     cat "${file}" | while read line ; do
         while [[ "$line" == *"\${"* && "$line" == *"}"* ]]; do
@@ -30,10 +32,10 @@ while [[ -n "${1}" ]]; do
 
             line="$pre$var$rest"
         done
-        echo "$line" >> tmpfile
+        echo "$line" >> "${TMPFILE}"
     done
 
     echo "> ${file}"
-    kubectl apply -f tmpfile
-    rm -f tmpfile
+    kubectl apply -f "${TMPFILE}"
+    rm -f "${TMPFILE}"
 done
