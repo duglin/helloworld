@@ -5,8 +5,8 @@ env   # just for debuggin
 echo
 
 #  Log into IBM Cloud and set our KUBECONFIG
-ic login --apikey ${IC_KEY} -r us-south
-$(ic ks cluster-config --export ${CLUSTER})
+bx login --apikey ${IC_KEY} -r us-south
+$(bx ks cluster-config --export ${CLUSTER})
 
 # Get the service's yaml, tweak it then 'apply' it
 kubectl get ksvc/helloworld -o yaml > yaml
