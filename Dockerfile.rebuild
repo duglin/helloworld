@@ -1,0 +1,16 @@
+FROM golang
+COPY rebuild.go /
+RUN GO_EXTLINK_ENABLED=0 CGO_ENABLED=0 go build \
+    -ldflags "-w -extldflags -static" \
+	-tags netgo -installsuffix netgo \
+	-o /rebuild /rebuild.go
+
+FROM ubuntu
+RUN apt-get -y update && apt-get -y upgrade
+RUN apt-get install -y curl wget
+RUN apt install -y libnss3-tools
+RUN update-ca-certificates
+RUN curl -sL https://ibm.biz/idt-installer | bash
+COPY --from=0 /rebuild /rebuild
+COPY rebuild.sh /rebuild.sh
+ENTRYPOINT [ "/rebuild" ]

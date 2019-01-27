@@ -1,0 +1,29 @@
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld
+spec:
+  runLatest:
+    configuration:
+      build:
+        serviceAccountName: build-bot
+        source:
+          git:
+            revision: master
+            url: https://github.com/${GITREPO}
+        steps:
+        - args:
+          - --build-arg=gitsha=19
+          - --dockerfile=/workspace/Dockerfile
+          - --destination=index.docker.io/${APP_IMAGE}
+          image: gcr.io/kaniko-project/executor
+          name: build-and-push
+          resources: {}
+      revisionTemplate:
+        metadata:
+          annotations:
+            autoscaling.knative.dev/target: "1"
+        spec:
+          container:
+            image: ${APP_IMAGE}
+          containerConcurrency: 1

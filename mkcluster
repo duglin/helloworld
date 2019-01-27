@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Usage: mkcluster cluster-name
+# Creates 3 worker-node cluster in IBM Cloud to be used for a Knative demo
+
+set -e
+
+ZONE=${ZONE:-dal13}
+MACHINE=${MACHINE:-b2c.4x16}
+WORKERS=${WORKERS:-3}
+NAME=${1:-knative}
+
+if ic ks clusters | grep "^${NAME} .* normal "; then
+    echo Cluster already exists
+else
+    echo Creating ${NAME}
+fi
+
+# Get our VLAN info
+set -x
+ic ks vlans --zone $ZONE > tmpout
+set +x
+PRI_VLAN=$(grep private tmpout | sed "s/ .*//")
+PUB_VLAN=$(grep public tmpout | sed "s/ .*//")
+rm tmpout
+
+# Create the cluster
+set -x
+ic ks cluster-create --name ${NAME} --zone ${ZONE} --machine-type ${MACHINE} \
+    --workers ${WORKERS} --private-vlan ${PRI_VLAN} --public-vlan ${PUB_VLAN} \
+    --kube-version $(ic ks kube-versions -s | tail -1)
+set +x
+
+# Wait for it to be ready
+while ! (ic ks clusters | tee tmpout | grep "^${NAME} " | grep " normal "); do
+    grep "^${NAME} " tmpout || true
+    sleep 30
+done
+rm tmpout
+
+# Show the KUBECONFIG export to use
+set -x
+ic ks cluster-config --export ${NAME}
+set +x

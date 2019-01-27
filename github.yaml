@@ -1,0 +1,21 @@
+apiVersion: sources.eventing.knative.dev/v1alpha1
+kind: GitHubSource
+metadata:
+  name: githubsource
+spec:
+  eventTypes:
+    - push
+    - issues
+  ownerAndRepository: ${GITREPO}
+  accessToken:
+    secretKeyRef:
+      name: mysecrets
+      key: git_accesstoken
+  secretToken:
+    secretKeyRef:
+      name: mysecrets
+      key: git_secrettoken
+  sink:
+    apiVersion: serving.knative.dev/v1alpha1
+    kind: Service
+    name: rebuild

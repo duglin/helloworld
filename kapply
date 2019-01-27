@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -e
+
+while [[ -n "${1}" ]]; do
+    file="${1}"
+    shift
+
+    rm -f tmpfile
+    IFS=''
+    cat "${file}" | while read line ; do
+        while [[ "$line" == *"\${"* && "$line" == *"}"* ]]; do
+            pre=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\1/")
+            var=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\2/")
+            rest=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\3/")
+
+            # .file.property
+            if [[ "$var" == "."* ]]; then
+                if [[ "${var:1}" == *"."* ]]; then
+                    file=$(echo "${var}" | sed "s/^\(.[^.]*\).*$/\1/")
+                    var=$(echo "${var}" | sed "s/^\(.[^.]*\)\.\(.*\)$/\2/")
+                    var=$(cat "${file}" | grep "^${var}=" | sed "s/^[^=]*=//")
+                else
+                    var=$(cat "${var}")
+                fi
+            else
+                # var == end var name
+                var="${!var}"
+            fi
+
+            line="$pre$var$rest"
+        done
+        echo "$line" >> tmpfile
+    done
+
+    echo "> ${file}"
+    kubectl apply -f tmpfile
+    rm -f tmpfile
+done
