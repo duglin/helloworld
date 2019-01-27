@@ -1,12 +1,13 @@
 #!/bin/bash
 set -ex
 echo
-env   # just for debuggin
+env | sort  # just for debuggin
 echo
 
 #  Log into IBM Cloud and set our KUBECONFIG
 bx login --apikey ${IC_KEY} -r us-south
 $(bx ks cluster-config --export ${CLUSTER})
+echo
 
 # Get the service's yaml, tweak it then 'apply' it
 kubectl get ksvc/helloworld -o yaml > yaml

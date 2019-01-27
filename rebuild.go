@@ -30,6 +30,7 @@ func main() {
 			fmt.Printf("Envs:\n%v\n", os.Environ())
 			out, err := exec.Command("/rebuild.sh").CombinedOutput()
 			fmt.Printf("%s\n%s\n", out, err)
+			fmt.Fprintf(w, "%s\n%s\n", out, err)
 		}
 	})
 
