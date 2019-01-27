@@ -8,7 +8,7 @@ while [[ -n "${1}" ]]; do
     file="${1}"
     shift
 
-    rm -f "${TMPFILE}
+    rm -f "${TMPFILE}"
     IFS=''
     cat "${file}" | while read line ; do
         while [[ "$line" == *"\${"* && "$line" == *"}"* ]]; do
