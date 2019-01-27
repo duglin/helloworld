@@ -12,7 +12,7 @@ func main() {
 		fmt.Printf("Got request\n")
 		time.Sleep(200 * time.Millisecond)
 		text := "Hello World!"
-		fmt.Fprintf(w, os.Getenv("K_REVISION") + ": " text + "\n")
+		fmt.Fprintf(w, os.Getenv("K_REVISION")+": "+text+"\n")
 	})
 
 	fmt.Print("Listening on port 8080\n")
