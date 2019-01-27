@@ -11,7 +11,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Got request\n")
 		time.Sleep(200 * time.Millisecond)
-		text := "Hello World!"
+		text := "Hello World! 1544"
 		fmt.Fprintf(w, os.Getenv("K_REVISION")+": "+text+"\n")
 	})
 
