@@ -10,7 +10,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Got request\n")
 		time.Sleep(200 * time.Millisecond)
-		fmt.Fprintf(w, "Hello World! 17654\n")
+		fmt.Fprintf(w, "Hello World!\n")
 	})
 
 	fmt.Print("Listening on port 8080\n")
