@@ -34,10 +34,32 @@ Dockerhub namespace name instead of `duglin`, and change `GITREPO`
 to be the name of your Github clone of this repo - typically you should
 just need to swap `duglin` for your Github name.
 
+You'll need to create a repo in advance. You can use `mkcluster` to do that.
+Just make sure you also run:
+
+```console
+$(ic ks cluster config --export <cluster-name>)
+```
+
+before you run the demo.
+
 If you want to run through the demo manually, move on to the next
 section, otherwise just run `demo` and it should do it all for you.
 Just press the spacebar to move on to the next command when it pauses.
-If the slow typing it annoying, press `f` when it pauses and it'll stop that.
+If the slow typing is annoying, press `f` when it pauses and it'll stop that.
+
+Which ever way you run the demo, I'd run `./pods` in another window so
+you can see the Knative Services and Pods as they come-n-go. Again, make
+sure you run:
+
+```console
+$(ic ks cluster config --export <cluster-name>)
+```
+
+in that other window too.
+
+Also, these scripts are tested on Ubuntu, I haven't tried them on MacOS
+yet so don't be surprised if things don't work there yet.
 
 ## Manually running the demo | Demo details
 
