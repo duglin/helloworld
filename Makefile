@@ -1,4 +1,7 @@
-all: .helloworld .rebuild
+all: .helloworld .rebuild load
+
+load: load.go
+	go build -o load load.go
 
 .rebuild: rebuild.go Dockerfile.rebuild rebuild.sh
 	go build -o /dev/null rebuild.go     # Fail fast for compilation errors
