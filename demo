@@ -1,0 +1,112 @@
+#!/bin/bash
+
+set -e
+source .demoscript
+
+export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
+export GITREPO=${GITREPO:-duglin/helloworld}
+export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
+
+# Fix-up the Makefile
+sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
+sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
+
+comment --nopause Clean from previous run and rebuild everything
+doit clean
+
+CLUSTER=${1:-${KUBECONFIG##*-}}
+export CLUSTER=${CLUSTER%.yml}
+
+comment Determining cluster info for ${CLUSTER}...
+skip=1 doit ic ks cluster-get -s ${CLUSTER}
+DOMAIN=$(grep "Ingress Subdomain" out | sed "s/Ingress Subdomain:\s*//")
+DOMAIN=$(echo "${DOMAIN}" | sed "s/ //g")
+
+comment Domain: ${DOMAIN}
+
+doit $(ic ks cluster-config --export ${CLUSTER})
+$(cat out)
+
+doit ./kapply ingress.yaml 
+patch="[{\"op\":\"replace\",\"path\":\"/data\",\"value\":{\"${DOMAIN}\":\"\"}}]"
+doit kubectl patch cm/config-domain -n knative-serving --type json -p=\'$patch\'
+# kubectl patch cm/config-domain -n knative-serving --type json -p="[{\"op\":\"replace\",\"path\":\"/data\",\"value\":{\"${DOMAIN}\":\"\"}}]"
+
+doit ./kapply secrets.yaml
+
+# Clean up from previous run
+kubectl delete -f service2.yaml > /dev/null 2>&1 || true
+
+doit ./kapply service1.yaml
+
+while ! kubectl get ksvc/helloworld -o yaml | grep "domain.*${DOMAIN}" ; do
+  kubectl get ksvc/helloworld || true
+  sleep 10 
+done
+
+while ! curl -f helloworld.default.${DOMAIN} > /dev/null 2>&1 ; do 
+  kubectl get pods | grep -v Terminating | grep -v Completed
+  sleep 5
+done
+
+echo
+
+doit curl -sf helloworld.default.${DOMAIN}
+
+doit ./kapply service2.yaml
+
+comment Wait for the new version to be deployed
+while ! kubectl get ksvc | grep helloworld.*002.*002 > /dev/null 2>&1 ; do
+  # kubectl get pods | grep -v Terminating | grep -v Completed
+  sleep 5
+done
+
+doit curl -sf helloworld.default.${DOMAIN}
+comment Same output as before but with new revision number
+
+comment "Let's deploy the rebuild function that github will call"
+doit ./kapply rebuild.yaml 
+
+comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
+doit ./kapply github.yaml 
+
+while ! kubectl get githubsource -o yaml | grep "type.*Ready" > /dev/null 2>&1 ; do
+  sleep 1
+done
+
+while ! kubectl get ksvc | grep githubsource.*True > /dev/null 2>&1 ; do
+  sleep 1
+done
+
+comment "Now let's edit our app and push it to github"
+if [[ -n "${skip}" ]]; then
+  # STRING="Hello World! ${RANDOM}"
+  STRING="Dogs rule!!!"
+  doit sed -i "\"s/text :=.*/text := \\\"${STRING}\\\"/\"" helloworld.go
+else
+  doit --noexec vi helloworld.go
+  vi helloworld.go
+fi
+
+STRING=$(grep "text :=" helloworld.go | sed 's/.*"\([^"]*\)".*$/\1/')
+
+doit git add helloworld.go 
+doit git commit -s -m "\"demo - $(date)\""
+doit git push origin master
+
+comment "Waiting for new version (look for '$STRING')"
+comment "curl -sf helloworld.default.${DOMAIN}"
+
+while true ; do
+  sleep 10
+  out=$(curl -sf helloworld.default.${DOMAIN})
+  echo ${out}
+  echo "${out}" | grep "^helloworld-[0-9]*: ${STRING}$" > /dev/null || continue
+  break
+done
+
+comment "Now let's do A/B testing... 10% of requests go to version 1"
+scroll service-patch.yaml
+doit ./kapply -p ksvc/helloworld service-patch.yaml
+
+doit ./load 10 60 http://helloworld.default.${DOMAIN}
