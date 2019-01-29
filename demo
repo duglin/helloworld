@@ -12,7 +12,7 @@ sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
 sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
 
 comment --nopause Clean from previous run and rebuild everything
-doit ./clean
+doit --noscroll ./clean
 
 CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
@@ -81,7 +81,7 @@ done
 comment "Now let's edit our app and push it to github"
 if [[ -n "${skip}" ]]; then
   # STRING="Hello World! ${RANDOM}"
-  STRING="Dogs rule!!!"
+  STRING="Dogs rule!! Cats drool!!"
   doit sed -i "\"s/text :=.*/text := \\\"${STRING}\\\"/\"" helloworld.go
 else
   doit --noexec vi helloworld.go
