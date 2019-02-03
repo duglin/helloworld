@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 func main() {
-	text := "Dogs rule!! Cats drool!!"
+	text := "Hello World!"
+
 	rev := os.Getenv("K_REVISION")
-	if rev != "" {
-		rev = rev[11:]
+	if i := strings.LastIndex(rev, "-"); i > 0 {
+		rev = rev[i+1:]
 	}
 	msg := fmt.Sprintf("%s: %s\n", rev, text)
 
