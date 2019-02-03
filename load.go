@@ -70,4 +70,5 @@ func main() {
 	}
 	// go displayOutput()
 	wg.Wait()
+	fmt.Printf("\033[%d;0H", 1+10)
 }

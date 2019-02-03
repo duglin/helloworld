@@ -1,12 +1,14 @@
 #!/bin/bash
 set -ex
 echo
-env | sort  # just for debuggin
+env | sort  # just for debugging
 echo
 
 #  Log into IBM Cloud and set our KUBECONFIG
 bx login --apikey ${IC_KEY} -r us-south
-$(bx ks cluster-config --export ${CLUSTER})
+bx config --check-version false
+bx ks cluster-config -s --export ${CLUSTER} 2>&1 | tee out
+$(cat out | grep KUBECONFIG=)
 echo
 
 # Get the service's yaml, tweak it then 'apply' it

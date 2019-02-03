@@ -40,5 +40,6 @@ rm tmpout
 
 # Show the KUBECONFIG export to use
 set -x
-ic ks cluster-config --export ${NAME}
+ic config --check-version false
+ic ks cluster-config -s --export ${NAME}
 set +x

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"os/exec"
 )
 
@@ -25,12 +24,15 @@ func main() {
 
 		if msg["action"] != nil {
 			fmt.Printf("Got issue event\n")
-		} else {
+		} else if msg["hook"] != nil {
+			fmt.Printf("Got hook event\n")
+		} else if msg["pusher"] != nil {
 			fmt.Printf("Got push event\n")
-			fmt.Printf("Envs:\n%v\n", os.Environ())
 			out, err := exec.Command("/rebuild.sh").CombinedOutput()
 			fmt.Printf("%s\n%s\n", out, err)
 			fmt.Fprintf(w, "%s\n%s\n", out, err)
+		} else {
+			fmt.Printf("Unknown event\n")
 		}
 	})
 

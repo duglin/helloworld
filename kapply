@@ -43,7 +43,7 @@ while [[ -n "${1}" ]]; do
         echo "$line" >> "${TMPFILE}"
     done
 
-    echo "> ${file}"
+    # echo "> ${file}"
 	if [[ "$CMD" == "apply" ]]; then
         kubectl apply -f "${TMPFILE}"
 	else

@@ -6,17 +6,11 @@
       "rolloutPercent": 10,
       "configuration": {
         "revisionTemplate": {
-          "metadata": {
-            "annotations": {
-              "autoscaling.knative.dev/target": "1"
-            }
-          },
           "spec": {
             "container": {
               "image": ${APP_IMAGE}
             },
-            "containerConcurrency": 1,
-            "timeoutSeconds": 300
+            "containerConcurrency": 1
           }
         }
       }
