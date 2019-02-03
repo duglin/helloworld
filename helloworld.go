@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	text := "Hello World!"
+	text := "Dogs rule!! Cats drool!!"
 	rev := os.Getenv("K_REVISION")
 	if rev != "" {
 		rev = rev[11:]
