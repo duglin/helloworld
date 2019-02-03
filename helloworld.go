@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	// "time"
+	"time"
 )
 
 func main() {
-	text := "Dogs rule!! Cats drool!!"
+	text := "Hello World!"
 
 	rev := os.Getenv("K_REVISION")
 	if i := strings.LastIndex(rev, "-"); i > 0 {
@@ -19,7 +19,7 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Got request\n")
-		// time.Sleep(100 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 		fmt.Fprint(w, msg)
 	})
 
