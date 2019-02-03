@@ -6,11 +6,16 @@ TMPFILE=kapply-tmp${RANDOM}
 CMD="apply"
 OBJECT=""
 
-if [[ "$1" == "-p" ]]; then
-    CMD="patch"
-	OBJECT="$2"
-	shift 2
-fi
+while [[ "$1" == "-"* ]]; do
+    case "$1" in
+    -t)  TESTRUN="true" ;;
+    -p)  CMD="path"
+         OBJECT="$2"
+         shift ;;
+    *) echo "Uknown option '$1'" ; exit 1 ;;
+    esac
+    shift
+done
 
 while [[ -n "${1}" ]]; do
     file="${1}"
@@ -44,10 +49,12 @@ while [[ -n "${1}" ]]; do
     done
 
     # echo "> ${file}"
-	if [[ "$CMD" == "apply" ]]; then
+    if [[ -n "$TESTRUN" ]]; then
+        cat "${TMPFILE}"
+    elif [[ "$CMD" == "apply" ]]; then
         kubectl apply -f "${TMPFILE}"
-	else
-	    kubectl patch $OBJECT --type=json -p "$(cat ${TMPFILE})"
-	fi
+    else
+        kubectl patch $OBJECT --type=json -p "$(cat ${TMPFILE})"
+    fi
     rm -f "${TMPFILE}"
 done

@@ -7,12 +7,66 @@ export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
 export GITREPO=${GITREPO:-duglin/helloworld}
 export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
 
-# Fix-up the Makefile
-sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
-sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
+function showResources {
+    kubectl get endpoints | grep -v NAME | sed "s/^/endpoint\//" > out1
+    (cat out1 && kubectl get all 2> /dev/null ) | grep --color=never / | \
+        sed "s/\s.*//g" | sort -u > out2
+    if [[ "$1" == "all" ]]; then
+        doit --noexec kubectl get all \| grep -v knative.dev
+        grep -v knative.dev out2
+        echo
+    fi
+    doit --noexec kubectl get all \| grep knative.dev
+    grep knative.dev out2
+    echo
+    rm -f out1 out2
+}
 
-comment --nopause Clean from previous run and rebuild everything
-doit --noscroll ./clean
+function cleanDemo {
+    echo Clean from previous run and rebuild everything
+
+    (
+    set +e
+    kubectl delete \
+        -f service1.yaml \
+        -f service2.yaml \
+        -f github.yaml \
+        -f rebuild.yaml \
+        -f secrets.yaml
+
+    kubectl delete \
+        clusterchannelprovisioner.eventing.knative.dev/in-memory-channel
+    kubectl delete horizontalpodautoscaler.autoscaling/istio-pilot
+    set -e
+    ) 2> /dev/null
+
+    rm -f cmds out
+
+    if ! grep "\"Hello World!\"" helloworld.go > /dev/null ; then
+        sed -i 's/text :=.*/text := "Hello World!"/' helloworld.go
+        git add helloworld.go
+        git commit -s -m "clean"
+        git push origin master
+    fi
+    make
+}
+
+
+while [[ "$1" == "--"* ]]; do
+    case "$1" in
+    --clean)  cleanDemo ; exit 0 ;;
+    --showresources)  showResources all ; exit 0 ;;
+    *) echo "Uknown option '$1'" ; exit 1 ;;
+    esac
+    shift
+done
+
+# Fix-up the Makefile
+# sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
+# sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
+
+# comment --nopause Clean from previous run and rebuild everything
+# doit --noscroll ./clean
 
 CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
@@ -25,7 +79,8 @@ DOMAIN=$(echo "${DOMAIN}" | sed "s/ //g")
 comment Domain: ${DOMAIN}
 
 ic config --check-version false
-doit $(ic ks cluster-config -s --export ${CLUSTER})
+doit ic ks cluster-config -s --export ${CLUSTER}
+doit $(cat out)
 $(cat out)
 
 doit ./kapply ingress.yaml
@@ -36,12 +91,18 @@ doit kubectl patch cm/config-domain -n knative-serving --type json -p=\'$patch\'
 doit ./kapply secrets.yaml
 
 # Clean up from previous run
-kubectl delete -f service2.yaml > /dev/null 2>&1 || true
+# kubectl delete -f service2.yaml > /dev/null 2>&1 || true
+
+### Start of live demo stuff
+
+scroll helloworld.go
 
 scroll service1.yaml
+# doit ./kapply -t service1.yaml
 doit ./kapply service1.yaml
 
-while ! kubectl get ksvc/helloworld -o yaml | grep "domain.*${DOMAIN}" ; do
+skip=1 doit --noexec kubectl get ksvc/helloworld -w
+while ! kubectl get ksvc/helloworld -o yaml | grep "domain.*${DOMAIN}" > /dev/null ; do
   kubectl get ksvc/helloworld || true
   sleep 3
 done
@@ -55,7 +116,10 @@ echo
 
 doit curl -sf helloworld.default.${DOMAIN}
 
+showResources
+
 scroll service2.yaml
+# doit ./kapply -t service2.yaml
 doit ./kapply service2.yaml
 
 comment Wait for the new version to be deployed
@@ -67,15 +131,17 @@ done
 doit curl -sf helloworld.default.${DOMAIN}
 comment Same output as before but with new revision number
 
-comment "Let's deploy the rebuild function that github will call"
-scroll rebuild.yaml
+comment --pause "Let's deploy the rebuild function that github will call"
+# scroll rebuild.yaml
+doit ./kapply -t rebuild.yaml
 doit ./kapply rebuild.yaml
 while ! kubectl get ksvc | grep rebuild.*True > /dev/null 2>&1 ; do
   sleep 2
 done
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
-scroll github.yaml
+# scroll github.yaml
+doit ./kapply -t github.yaml
 doit ./kapply github.yaml
 while ! kubectl get ksvc | grep githubsource.*True > /dev/null 2>&1 ; do
   sleep 1
@@ -99,6 +165,7 @@ doit git push origin master
 
 comment "While we wait, let's look at the 'trigger' in the service"
 scroll service2.yaml
+# doit ./kapply -t service2.yaml
 
 comment "Waiting for new version (look for '$STRING')"
 skip="1" doit --noexec "curl -sf helloworld.default.${DOMAIN}"
@@ -111,10 +178,13 @@ while true ; do
   break
 done
 
+echo
+
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
+# doit ./kapply -t -p ksvc/helloworld service-patch.json
 doit ./kapply -p ksvc/helloworld service-patch.json
 
 doit --noscroll ./load 10 30 http://helloworld.default.${DOMAIN}
 
-doit 'kubectl get all 2> /dev/null | grep --color=never / | sed "s/\/.*//" | sed "s/\s*//g" | sort -u'
+showResources all

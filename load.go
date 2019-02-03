@@ -35,10 +35,11 @@ func generateLoad(index int, url string, dur time.Duration, wg *sync.WaitGroup) 
 		}
 		if resp.Body != nil {
 			out, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
 			// outputs[index] = strings.TrimSpace(string(out))
 			output := strings.TrimSpace(string(out))
-			go Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
-			resp.Body.Close()
+			// go Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
+			Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error(%d): %s\n", index, err)
