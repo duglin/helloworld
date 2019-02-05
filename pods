@@ -3,12 +3,22 @@
 set -e
 
 once=""
+noclear=""
+untilcmd=""
+grepcmd=""
 
-if [[ "$1" == "-1" ]]; then
-    once="1"
+while [[ "$1" == "--"* ]]; do
+    case "$1" in
+    --noclear) noclear="1" ;;
+    --once)  once="1" ;;
+    --until)  untilcmd="$2" ; shift ;;
+    --grep)  grepcmd="$2" ; shift ;;
+    *) echo "Uknown option '$1'" ; exit 1 ;;
+    esac
     shift
-fi
-if [[ -z "$once" ]]; then
+done
+
+if [[ -z "${noclear}" ]]; then
     clear
 fi
 
@@ -21,8 +31,13 @@ function finish {
 }
 trap finish EXIT
 
+oldSize=0
+
+bx config --check-version false
+$(bx ks cluster-config -s --export ${CLUSTER})
+
 while true ; do
-    echo -e "Cluster: ${CLUSTER}\\n" > $TMPFILE
+    printf "Cluster: ${CLUSTER}\033[K\\n" > $TMPFILE
 
     kubectl get ksvc < /dev/null 2>&1 | while read name domain latestc latestr ready reason
     do
@@ -39,7 +54,11 @@ while true ; do
         printf "%-30s %-30s %-5s\033[K\\n" "${name}" "${latestr}" "${ready}" >> $TMPFILE
     done
 
-    echo >> $TMPFILE
+    printf "\033[K\\n" >> $TMPFILE
+    read -s -n 1 -t 0.01 ch || true
+    if ! [[ "$ch" == "" ]]; then
+        break
+    fi
 
     kubectl get pods < /dev/null 2>&1 | while read name ready status restarts age
     do
@@ -60,24 +79,38 @@ while true ; do
     done
     ! [[ "${PIPESTATUS[0]}" == "0" ]] && exit 1
 
-    echo >> $TMPFILE
+    # printf "\033[K\\n" >> $TMPFILE
 
-    clear
+    # clear
+    if [[ "$oldSize" != "0" ]]; then
+	    printf "\033[%dA" "${oldSize}"
+    fi
+    newSize=$(wc -l "${TMPFILE}" | sed "s/ .*//")
+	while (( oldSize > newSize )); do
+        printf "\033[K\\n" >> $TMPFILE
+		let oldSize=oldSize-1
+	done
     cat $TMPFILE
-    rm -f $TMPFILE
+    oldSize=$(wc -l "${TMPFILE}" | sed "s/ .*//")
+    # rm -f $TMPFILE
 
     if [[ -n "${once}" ]]; then
        break
     fi
 
-    read -s -n 1 -t 0.1 ch || true
-    if ! [[ "$ch" == "" ]]; then
-        break
-    fi
+	if [[ -n "${grepcmd}" ]]; then
+        set +e
+	    grep "${grepcmd}" $TMPFILE > /dev/null 2>&1 && break
+        set -e
+	fi
+	
+	if [[ -n "$untilcmd" ]]; then
+		set +e
+		bash -c " ${untilcmd} " >/dev/null 2>&1 && break
+		set -e
+	fi
 
-    sleep 1
-
-    read -s -n 1 -t 0.1 ch || true
+    read -s -n 1 -t 1 ch || true
     if ! [[ "$ch" == "" ]]; then
         break
     fi

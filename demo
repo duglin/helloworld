@@ -68,9 +68,6 @@ done
 # sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
 # sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
 
-# comment --nopause Clean from previous run and rebuild everything
-# doit --noscroll ./clean
-
 CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
 
@@ -107,23 +104,11 @@ fi
 scroll helloworld.go
 
 scroll service1.yaml
-# doit ./kapply -t service1.yaml
 doit ./kapply service1.yaml
 
-skip=1 doit --noexec kubectl get ksvc/helloworld -w
-while ! kubectl get ksvc/helloworld -o yaml | grep "domain.*${DOMAIN}" > /dev/null ; do
-  kubectl get ksvc/helloworld || true
-  sleep 3
-done
-
-while ! curl -f helloworld.default.${DOMAIN} > /dev/null 2>&1 ; do
-  kubectl get pods | grep -v Terminating | grep -v Completed
-  sleep 5
-done
-
+comment Wait for the app to be deployed
+./pods --noclear --grep "helloworld.*001.*Running"
 echo
-
-# doit ./pods -1
 
 doit curl -sf helloworld.default.${DOMAIN}
 
@@ -133,25 +118,13 @@ scroll service2.yaml
 doit ./kapply service2.yaml
 
 comment Wait for the new version to be deployed
-# while ! kubectl get ksvc | grep helloworld.*002.*002 > /dev/null 2>&1 ; do
-  # # kubectl get pods | grep -v Terminating | grep -v Completed
-  # sleep 2
-# done
-
-while ! kubectl get pods 2>&1 | grep helloworld.*002.*Running ; do
-# while ! curl -f helloworld.default.${DOMAIN} > /dev/null 2>&1 ; do
-  # kubectl get pods | grep -v Terminating | grep -v Completed
-  # sleep 5
-  sleep 3
-done
-
-# echo
+./pods --noclear --grep "helloworld.*002.*Running"
+echo
 
 doit curl -sf helloworld.default.${DOMAIN}
 comment Same output as before but with new revision number
 
 comment --pause "Let's deploy the rebuild function that github will call"
-# scroll rebuild.yaml
 doit ./kapply -t rebuild.yaml
 doit ./kapply rebuild.yaml
 while ! kubectl get ksvc | grep rebuild.*True > /dev/null 2>&1 ; do
@@ -159,7 +132,6 @@ while ! kubectl get ksvc | grep rebuild.*True > /dev/null 2>&1 ; do
 done
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
-# scroll github.yaml
 doit ./kapply -t github.yaml
 doit ./kapply github.yaml
 while ! kubectl get ksvc | grep githubsource.*True > /dev/null 2>&1 ; do
@@ -168,7 +140,6 @@ done
 
 comment "Now let's edit our app and push it to github"
 if [[ -n "${skip}" ]]; then
-  # STRING="Hello World! ${RANDOM}"
   STRING="Dogs rule!! Cats drool!!"
   doit sed -i "\"s/text :=.*/text := \\\"${STRING}\\\"/\"" helloworld.go
 else
@@ -184,7 +155,6 @@ doit git push origin master
 
 comment "While we wait, let's look at the 'trigger' in the service"
 scroll service2.yaml
-# doit ./kapply -t service2.yaml
 
 comment "Waiting for new version (look for '$STRING')"
 skip="1" doit --noexec "curl -sf helloworld.default.${DOMAIN}"
@@ -201,7 +171,6 @@ echo
 
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
-# doit ./kapply -t -p ksvc/helloworld service-patch.json
 doit ./kapply -p ksvc/helloworld service-patch.json
 
 doit --noscroll ./load 10 30 http://helloworld.default.${DOMAIN}
