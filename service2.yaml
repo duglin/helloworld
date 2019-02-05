@@ -17,11 +17,11 @@ spec:
             git:
               revision: master
               url: https://github.com/${GITREPO}
-          steps:
-          - args:
-            - --dockerfile=/workspace/Dockerfile
-            - --destination=index.docker.io/${APP_IMAGE}
-            image: gcr.io/kaniko-project/executor
+          template:
+            name: kaniko
+            arguments:
+            - name: IMAGE
+              value: index.docker.io/${APP_IMAGE}
       revisionTemplate:
         spec:
           container:

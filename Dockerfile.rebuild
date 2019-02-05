@@ -12,6 +12,7 @@ RUN apt install -y libnss3-tools
 RUN update-ca-certificates
 RUN curl -sL https://ibm.biz/idt-installer | bash
 RUN bx plugin update --all
+RUN bx config --check-version false
 COPY --from=0 /rebuild /rebuild
 COPY rebuild.sh /rebuild.sh
 ENTRYPOINT [ "/rebuild" ]

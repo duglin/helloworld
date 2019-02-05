@@ -7,6 +7,8 @@ export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
 export GITREPO=${GITREPO:-duglin/helloworld}
 export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
 
+skiptodemo=""
+
 function showResources {
     kubectl get endpoints | grep -v NAME | sed "s/^/endpoint\//" > out1
     (cat out1 && kubectl get all 2> /dev/null ) | grep --color=never / | \
@@ -56,6 +58,7 @@ while [[ "$1" == "--"* ]]; do
     case "$1" in
     --clean)  cleanDemo ; exit 0 ;;
     --showresources)  showResources all ; exit 0 ;;
+	--demo) skiptodemo=1 ; skip=1 ;;
     *) echo "Uknown option '$1'" ; exit 1 ;;
     esac
     shift
@@ -93,6 +96,12 @@ doit ./kapply secrets.yaml
 # Clean up from previous run
 # kubectl delete -f service2.yaml > /dev/null 2>&1 || true
 
+doit kubectl apply -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml
+
+if [[ -n "${skiptodemo}" ]]; then
+    skip=""
+fi
+
 ### Start of live demo stuff
 
 scroll helloworld.go
@@ -114,19 +123,29 @@ done
 
 echo
 
+# doit ./pods -1
+
 doit curl -sf helloworld.default.${DOMAIN}
 
-showResources
+showResources all
 
 scroll service2.yaml
-# doit ./kapply -t service2.yaml
 doit ./kapply service2.yaml
 
 comment Wait for the new version to be deployed
-while ! kubectl get ksvc | grep helloworld.*002.*002 > /dev/null 2>&1 ; do
+# while ! kubectl get ksvc | grep helloworld.*002.*002 > /dev/null 2>&1 ; do
+  # # kubectl get pods | grep -v Terminating | grep -v Completed
+  # sleep 2
+# done
+
+while ! kubectl get pods 2>&1 | grep helloworld.*002.*Running ; do
+# while ! curl -f helloworld.default.${DOMAIN} > /dev/null 2>&1 ; do
   # kubectl get pods | grep -v Terminating | grep -v Completed
-  sleep 2
+  # sleep 5
+  sleep 3
 done
+
+# echo
 
 doit curl -sf helloworld.default.${DOMAIN}
 comment Same output as before but with new revision number
