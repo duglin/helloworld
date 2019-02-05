@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This tool is a variant of `kubectl get pods` and `kubectl get ksvc`.
+# It executes both commands but only shows the entries of interest during
+# a live demo. For example, it doesn't show Terminating pods.
+
 set -e
 
 once=""
