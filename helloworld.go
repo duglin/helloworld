@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	text := "Dogs rules, cats drool!!!!"
+	text := "Hello World!"
 
 	rev := os.Getenv("K_REVISION")
 	if i := strings.LastIndex(rev, "-"); i > 0 {
@@ -19,7 +19,7 @@ func main() {
 	msg := fmt.Sprintf("%s: %s\n", rev, text)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		fmt.Printf("Got request\n")
 		fmt.Fprint(w, msg)
 	})
