@@ -9,20 +9,21 @@ import (
 )
 
 func main() {
-	text := "Hello World!"
+	text := "Dogs rule, cats drool!!!!!!!"
 
 	rev := os.Getenv("K_REVISION")
 	if i := strings.LastIndex(rev, "-"); i > 0 {
 		rev = rev[i+1:]
 	}
+
 	msg := fmt.Sprintf("%s: %s\n", rev, text)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Got request\n")
 		time.Sleep(1000 * time.Millisecond)
+		fmt.Printf("Got request\n")
 		fmt.Fprint(w, msg)
 	})
 
-	fmt.Print("Listening on port 8080\n")
+	fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
 	http.ListenAndServe(":8080", nil)
 }
