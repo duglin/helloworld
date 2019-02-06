@@ -101,6 +101,19 @@ stop that.
 
 ## Manually running the demo | Demo details
 
+Before you begin, set these environment variables:
+
+```
+export APP_IMAGE=duglin/helloworld
+export REBUILD_IMAGE=duglin/rebuild
+export GITREPO=duglin/helloworld
+```
+
+Set `APP_IMAGE` and `REBUILD_IMAGE` values to use your
+Dockerhub namespace name instead of `duglin`, and change `GITREPO`
+to be the name of your Github clone of this repo - typically you should
+just need to swap `duglin` for your Github name.
+
 ### Create a new cluster
 
 Clearly we first need a Kubernetes cluster. And, I've automated this
@@ -515,14 +528,9 @@ Let's explain what some of these fields do:
 Now we can deploy it:
 
 ```
-export APP_IMAGE=duglin/helloworld
 $ ./kapply service1.yaml
 service.serving.knative.dev/helloworld created
 ```
-
-Notice you'll need to set the `APP_IMAGE` environment variable so that
-`kapply` can fill in correctly.
-
 
 If you're not running `pods` in another window, run it now to see what
 happened:
@@ -755,7 +763,7 @@ process can talk to IBM Cloud and know which cluster we're using.
 I don't go into the details of the code, you can look at the
 `rebuild.sh` script if you really want to see the details.
 
-Let's deploy it (set `REBUILD_IMAGE` and `CLUSTER` environment variables first):
+Let's deploy it:
 
 ```
 $ ./kapply rebuild.yaml
@@ -804,7 +812,7 @@ Walking through the fields:
   or Kube), or it could be a Knative Channel - which I don't cover in this
   demo.
 
-With that, let's create it (make sure `GITREPO` environment variable is set):
+With that, let's create it:
 
 ```
 $ ./kapply github.yaml
@@ -943,3 +951,15 @@ is something like this:
 10: 00003: Now is the time for all good...  
 ```
 
+(( add more commentary here ))
+
+
+## Cleaning up
+
+To clean the system so you can run things over and over, just do:
+
+```
+$ ./demo --clean
+```
+
+It should delete everything except the cluster, Istio and Knative.
