@@ -7,13 +7,13 @@
 set -e
 
 once=""
-noclear=""
+# noclear=""
 untilcmd=""
 grepcmd=""
 
 while [[ "$1" == "--"* ]]; do
     case "$1" in
-    --noclear) noclear="1" ;;
+    # --noclear) noclear="1" ;;
     --once)  once="1" ;;
     --until)  untilcmd="$2" ; shift ;;
     --grep)  grepcmd="$2" ; shift ;;
@@ -22,9 +22,9 @@ while [[ "$1" == "--"* ]]; do
     shift
 done
 
-if [[ -z "${noclear}" ]]; then
-    clear
-fi
+# if [[ -z "${noclear}" ]]; then
+    # clear
+# fi
 
 CLUSTER=${1:-${KUBECONFIG##*-}}
 CLUSTER=${CLUSTER%.yml}
@@ -85,7 +85,6 @@ while true ; do
 
     # printf "\033[K\\n" >> $TMPFILE
 
-    # clear
     if [[ "$oldSize" != "0" ]]; then
 	    printf "\033[%dA" "${oldSize}"
     fi

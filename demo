@@ -1,11 +1,17 @@
 #!/bin/bash
 
+# Usage: demo [ --clean | --demo ] [ CLUSTER_NAME ]
+# --clean will erase all old resouces from a previous run
+# --demo will fly thru the setup stuff and then pause when it gets to deploying
+# the apps. Basically, good for a live demo when you don't want to show the
+# prep steps.
+
 set -e
 source .demoscript
 
 export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
-export GITREPO=${GITREPO:-duglin/helloworld}
 export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
+export GITREPO=${GITREPO:-duglin/helloworld}
 
 skiptodemo=""
 
@@ -42,6 +48,8 @@ function cleanDemo {
     set -e
     ) 2> /dev/null
 
+	kubectl delete -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml
+
     rm -f cmds out
 
     if ! grep "\"Hello World!\"" helloworld.go > /dev/null ; then
@@ -53,7 +61,7 @@ function cleanDemo {
     make
 }
 
-
+# Parse our command line options
 while [[ "$1" == "--"* ]]; do
     case "$1" in
     --clean)  cleanDemo ; exit 0 ;;
@@ -63,10 +71,6 @@ while [[ "$1" == "--"* ]]; do
     esac
     shift
 done
-
-# Fix-up the Makefile
-# sed -i "s|\(APP_IMAGE.*= *\).*|\1${APP_IMAGE}|" Makefile
-# sed -i "s|\(REBUILD_IMAGE.*= *\).*|\1${REBUILD_IMAGE}|" Makefile
 
 CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
@@ -78,16 +82,20 @@ DOMAIN=$(echo "${DOMAIN}" | sed "s/ //g")
 
 comment Domain: ${DOMAIN}
 
+comment Set our KUBECONF env var
 ic config --check-version false
 doit ic ks cluster-config -s --export ${CLUSTER}
 doit $(cat out)
 $(cat out)
 
+comment Setup our DNS routing and enable external internet access from our pods
 doit ./kapply ingress.yaml
+
+comment Update the default Knative domain name used to match our cluster
 patch="[{\"op\":\"replace\",\"path\":\"/data\",\"value\":{\"${DOMAIN}\":\"\"}}]"
 doit kubectl patch cm/config-domain -n knative-serving --type json -p=\'$patch\'
-# kubectl patch cm/config-domain -n knative-serving --type json -p="[{\"op\":\"replace\",\"path\":\"/data\",\"value\":{\"${DOMAIN}\":\"\"}}]"
 
+comment Create the secrets used for accessing DockerHub and Github
 doit ./kapply secrets.yaml
 
 # Clean up from previous run
