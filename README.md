@@ -502,6 +502,10 @@ Let's explain what some of these fields do:
   rolling upgrade to a new version - for example, how much traffic do we want
   to go to v1 versus v2 of our app. I'm not going to go into this now,
   so we'll just use `runLatest` which takes a single container definition.
+- `configuration`: just a wrapper. In my opinion this should be removed,
+  it serves no real purpose. Under the covers Knative will create a
+  `Configuration` resource for its nested data, but that doesn't mean
+  we need to expose it to the user.
 - `revisionTemplate`: Each version of our application is called a
   revision. So, what we're doing here is defining a version of our app
   and its `image` value.
@@ -597,4 +601,269 @@ was a single `kuebctl` command with a single resource definition. That's
 a huge step forward for Kube users
 
 ### Adding build
+
+So, our first app is pretty simple, we just point to a pre-built container
+image. However, Knative has the ability to build it for you. Le's look
+at our new `service2.yaml` file to add this build logic:
+
+```
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld
+spec:
+  runLatest:
+    configuration:
+      build:
+        apiVersion: build.knative.dev/v1alpha1
+        kind: Build
+        metadata:
+          annotations:
+            trigger: "15"
+        spec:
+          serviceAccountName: build-bot
+          source:
+            git:
+              revision: master
+              url: https://github.com/${GITREPO}
+          template:
+            name: kaniko
+            arguments:
+            - name: IMAGE
+              value: index.docker.io/${APP_IMAGE}
+      revisionTemplate:
+        spec:
+          container:
+            image: ${APP_IMAGE}
+          containerConcurrency: 1
+```
+
+The `revisionTemplate` section at the bottom is the same as before. The
+`build` section is pretty verbose, but let's focus on the key bits:
+- `serviceAccountName`: this is the Kube Service Account to use when
+  running the build containers.
+- `source`: points to our source code. In this case we're pointing to a
+  Github repo - and it's `master` branch
+- template`: refers to the Knative Build Template to use to build the image.
+  In this case we're passing in the name of the DockerHub repo to store
+  the results.
+
+As I said, it's pretty verbose, but not too much info and should be fairly
+obvious/easy to understand.
+
+Let's deploy this next version of our app's deployment:
+
+```
+$ ./kapply service2.yaml
+service.serving.knative.dev/helloworld configured
+```
+
+If you're not running `pods` in another window, run it again here:
+
+```
+$ ./pods --once
+Cluster: knative102
+K_SVC_NAME                     LATESTREADY                    READY
+helloworld                     helloworld-00002               True 
+
+POD_NAME                                                STATUS           AGE
+helloworld-00001-deployment-d9c684bbf-267hc             Running          2m32s
+helloworld-00002-deployment-5769dd7756-8n9kj            Running          22s
+```
+
+What you'll notice is a "build pod" get created
+that will do the build as defined in the yaml. Then you'll see it vanish and a
+new `helloworld-000020-deployment...` pods appear. Notice it has "2" in there
+as the revision number, not one. This is because any change to the
+`revisionTemplate` or to the `build` section will cause a new revision to be
+created.
+
+You should also notice that both revision 1 and revision 2 are running.
+That's because Knative did a rolling upgrade - and kepts the old version
+around until the new one is ready and working. Revision 1 will eventually
+vanish after about 60 seconds since no one is hitting it and no one will
+since our routing setup (as of now) will always point to the latest revision.
+It's worth noting that revision 2 will vanish too, but only because no one is
+hitting it. Once a request comes it, Knative will recreate that pod to handle
+the request.
+
+So, let's hit it:
+
+```
+$ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
+00002: Hello World!
+```
+
+Nothing too exiciting here, it worked as expected - just notice it's showing
+`00002` as the revision number, not `00001`.
+
+### Hooking it up to Github events
+
+Now that we have the basics of our app dev pipeline defined, let's make it
+more exciting by having new versions of our app built and deployed
+automatically as new changes are pushed into our Github repo.
+
+For this to work there are a couple of things we need to setup:
+
+- we need a `rebuild` service. This service will do nothing more than
+  "poke" our Knative service to kick off a new build. This service will
+  be invoked each time a Github "push" event is received.
+
+  As of now, Knative does not have a good way to trigger a new build of
+  a service other than for "something" to twiddle the configuration
+  of the Service. So, remember in our previous section we add the
+  build section to our Service, that was a "twiddle" and we saw it
+  do a build. For our purposes, or `rebuild` Service will do almost
+  the same thing, it will edit the Service's build section in a
+  way to cause Knative to think there's a change and therefore kick off
+  a build.
+
+- we'll also need a `github` event source. This is a special resource
+  types in Knative that does two things:
+  - it will create a webhook in your github repo to send events to
+    your Knative installtion
+  - it will define the "event sink" for these events, which in our case
+    is our `rebuild` Service.
+
+Let's look at the `rebuild` service (`rebuild.yaml`):
+```
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: rebuild
+spec:
+  runLatest:
+    configuration:
+      revisionTemplate:
+        spec:
+          container:
+            image: ${REBUILD_IMAGE}
+            env:
+            - name: IC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mysecrets
+                  key: ic_apitoken
+            - name: CLUSTER
+              value: ${CLUSTER}
+```
+
+This should look very much like our `helloworld` service definition.
+For the most part it is just defining the container image to run
+and defining some environment variables. Those are there so that the
+process can talk to IBM Cloud and know which cluster we're using.
+I don't go into the details of the code, you can look at the
+`rebuild.sh` script if you really want to see the details.
+
+Let's deploy it (set `REBUILD_IMAGE` and `CLUSTER` environment variables first):
+
+```
+$ ./kapply rebuild.yaml
+service.serving.knative.dev/rebuild created
+```
+
+Moving on to the Github event source - the yaml for that one is this
+(`github.yaml`):
+
+```
+apiVersion: sources.eventing.knative.dev/v1alpha1
+kind: GitHubSource
+metadata:
+  name: githubsource
+spec:
+  eventTypes:
+    - push
+    - issues
+  ownerAndRepository: ${GITREPO}
+  accessToken:
+    secretKeyRef:
+      name: mysecrets
+      key: git_accesstoken
+  secretToken:
+    secretKeyRef:
+      name: mysecrets
+      key: git_secrettoken
+  sink:
+    apiVersion: serving.knative.dev/v1alpha1
+    kind: Service
+    name: rebuild
+```
+
+Walking through the fields:
+- `eventTypes`: specified which Github events we're interested in. In this
+  case we just need `push` but for fun/testing I also include `issues`
+- `ownerAndRepository`: the repo org and name
+- `acessToken`: this is the [Github Personal Access
+  Token](https://github.com/settings/tokens). Knative needs this to setup
+  the webhook
+- `secretToken`: is the secret token you want the events from Github to use
+  to verify they're authenticated with your Knative subscription. This can
+  basically be any random string you want
+- `sink`: this is the link to our `rebuild` service. This field holds
+  the destination for the incoming event. It could be a service (Knative
+  or Kube), or it could be a Knative Channel - which I don't cover in this
+  demo.
+
+With that, let's create it (make sure `GITREPO` environment variable is set):
+
+```
+$ ./kapply github.yaml
+githubsource.sources.eventing.knative.dev/githubsource created
+```
+
+If you go to your gitrepo repo's webhook page you should see an entry
+listed in there for it.
+
+((add pict))
+
+With that, we should be all set to test it!
+
+If you modify `helloworld.go` and push it to the `master` branch it should
+initiate the workflow.  In this case I'm going to movify the line in there:
+```
+text := "Hello World!"
+```
+to be:
+```
+text := "Now is the time for all good..."
+```
+
+And then add/push it:
+```
+$ git add helloworld.go
+$ git commit -m "my demo fun"
+$ git push origin master
+```
+
+In the `pods` window you should see something like this:
+
+```
+Cluster: knative102
+K_SVC_NAME                     LATESTREADY                    READY
+githubsource-b5skr             githubsource-b5skr-00001       True 
+helloworld                     helloworld-00002               Unknown
+rebuild                        rebuild-00001                  True 
+
+POD_NAME                                                STATUS           AGE
+githubsource-b5skr-00001-deployment-bfdc64c6f-x7dz8     Running          49s
+helloworld-00002-deployment-5769dd7756-q5d7j            Running          37s
+helloworld-00003-pod-6b8b9b                             Init:2/3         25s
+rebuild-00001-deployment-849cb99967-rnwsf               Running          43s
+```
+
+Since the `github` and `rebuild` actions are both Knative service, when
+the Github event came into our cluster those services were spun up, if not
+already running. Notice the `helloworld-00003-pod-6b8b9b` pod. That's the
+build pod for revision 3 (the next version) of our app.
+
+Eventually, that pod will go away and you should see a new "deployment"
+pod show up, which is our new version of the app running and ready to be
+hit.
+
+```
+$ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
+00003: Now is the time for all good...
+```
+
+There ya go! Notice it say "0003" not "0002".
 

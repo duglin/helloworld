@@ -115,7 +115,7 @@ scroll service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
-./pods --noclear --grep "helloworld.*001.*Running"
+./pods --grep "helloworld.*001.*Running"
 echo
 
 doit curl -sf helloworld.default.${DOMAIN}
@@ -126,21 +126,23 @@ scroll service2.yaml
 doit ./kapply service2.yaml
 
 comment Wait for the new version to be deployed
-./pods --noclear --grep "helloworld.*002.*Running"
+./pods --grep "helloworld.*002.*Running"
 echo
 
 doit curl -sf helloworld.default.${DOMAIN}
 comment Same output as before but with new revision number
 
 comment --pause "Let's deploy the rebuild function that github will call"
-doit ./kapply -t rebuild.yaml
+# doit ./kapply -t rebuild.yaml
+scroll rebuild.yaml
 doit ./kapply rebuild.yaml
 while ! kubectl get ksvc | grep rebuild.*True > /dev/null 2>&1 ; do
   sleep 2
 done
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
-doit ./kapply -t github.yaml
+# doit ./kapply -t github.yaml
+scroll github.yaml
 doit ./kapply github.yaml
 while ! kubectl get ksvc | grep githubsource.*True > /dev/null 2>&1 ; do
   sleep 1
