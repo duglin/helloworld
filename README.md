@@ -867,3 +867,79 @@ $ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
 
 There ya go! Notice it say "0003" not "0002".
 
+
+### A/B Testing
+
+That's all ok, but notice it rolled out the new version of app and totally
+replaced the existing running version. In a more real-world scenario we'd
+probably want to roll it out more slowly. To do that, we're going to do
+actually do a "rollback" to a previous revision.
+
+Let's look at the `service-patch.yaml` file we're going to use to do that:
+
+```
+[{"op":"replace",
+  "path":"/spec",
+  "value": {
+    "release": {
+      "revisions": [ "helloworld-00003", "helloworld-00002" ],
+      "rolloutPercent": 10,
+      "configuration": {
+        "revisionTemplate": {
+          "spec": {
+            "container": {
+              "image": ${APP_IMAGE}
+            },
+            "containerConcurrency": 1
+          }
+        }
+      }
+    }
+  }
+}]
+```
+
+This will replace the service's `spec` section, which has `runLatest` property
+with a `release` instead. This type of Service configuration sets up a
+rolling upgrade mechanism. Notice in the `revisions` property we list
+two revision names, 00003 and 00002. The first one in the list indicates
+what the "currently running" revision should be - which in our case is 00003.
+The second item in the list is the revision we want to "rollout" to, which
+in this case is the previous version, 00002. The `revisionTemplate` section
+remains unchanged.
+
+Also notice that the `rolloutPercent` tells the system to only send 10%
+of the incoming traffic to the "candidate" revision, meaning 00002. The idea
+is that we'd slowly increase that over time and eventually replace the
+`revisions` array with just one value - the "candidate" value, or 00002 in
+our scenario.
+
+So, let's apply the patch:
+
+```
+$ ./kapply -p ksvc/helloworld service-patch.json
+service.serving.knative.dev/helloworld patched
+```
+
+To see this rollout, we'll need to geneate some load. Make sure you've
+built the `load` tool (`make load`):
+
+```
+$ ./load 10 30 http://helloworld.default.knative102.us-south.containers.appdomain.cloud
+```
+
+Replace `knative102...` with your cluster's domain name. What you should see
+is something like this:
+```
+01: 00003: Now is the time for all good...                                      
+02: 00003: Now is the time for all good...                                      
+03: 00003: Now is the time for all good...                                      
+04: 00003: Now is the time for all good...                                      
+05: 00002: Hello World!                                                         
+06: 00003: Now is the time for all good...                                      
+07: 00003: Now is the time for all good...                                      
+08: 00003: Now is the time for all good...                                      
+09: 00003: Now is the time for all good...                                      
+10: 00003: Now is the time for all good...  
+```
+
