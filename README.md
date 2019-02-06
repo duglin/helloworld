@@ -2,8 +2,6 @@
 
 ## My First Knative Demo / App
 
-Written with IKS in mind.
-
 This repo contains the source code, tools and instructions for a demo that
 shows using Knative on the
 (IBM Cloud Kubernetes Service)[https://cloud.ibm.com]. You can pretty easily
@@ -15,8 +13,6 @@ are:
   be opening up issues for these things
 
 So, with that, let's get started...
-
-
 
 ## Prep
 
