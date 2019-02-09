@@ -8,6 +8,7 @@
 
 set -e
 source .demoscript
+RETRYONFAIL=1
 
 export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
 export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
