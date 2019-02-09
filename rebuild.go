@@ -5,10 +5,36 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
+	"strings"
 )
 
+func Run(cmd string, args ...string) string {
+	out, err := exec.Command(cmd, args...).CombinedOutput()
+	if err != nil {
+		fmt.Fprint(os.Stderr, "Failed running: %s %s\n%s\n",
+			cmd, strings.Join(args, " "), err)
+		os.Exit(1)
+	}
+	return string(out)
+}
+
 func main() {
+	apikey := os.Getenv("IC_KEY")
+	cluster := os.Getenv("CLUSTER")
+
+	fmt.Printf("Cluster: %s\nAPIKey: %s\n", cluster, apikey[:3])
+
+	Run("bx", "login", "--apikey", apikey, "-r", "us-south")
+	Run("bx", "config", "--check-version", "false")
+	export := Run("bx", "ks", "cluster-config", "-s", "--export", cluster)
+	export = strings.SplitN(export, "=", 2)[1]
+	export = strings.TrimSpace(export)
+
+	fmt.Printf("export KUBCONFIG=%s\n", export)
+	os.Setenv("KUBECONFIG", export)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		msg := map[string]interface{}{}
 
