@@ -9,9 +9,9 @@ import (
 )
 
 func main() {
-	text := "Hello World!"
+	text := "Dogs rule! Cats drool!"
 
-	rev := os.Getenv("K_REVISION")
+	rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-00001
 	if i := strings.LastIndex(rev, "-"); i > 0 {
 		rev = rev[i+1:]
 	}
@@ -19,8 +19,8 @@ func main() {
 	msg := fmt.Sprintf("%s: %s\n", rev, text)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(500 * time.Millisecond)
 		fmt.Printf("Got request\n")
+		time.Sleep(500 * time.Millisecond)
 		fmt.Fprint(w, msg)
 	})
 
