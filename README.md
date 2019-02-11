@@ -816,7 +816,7 @@ githubsource.sources.eventing.knative.dev/githubsource created
 If you go to your gitrepo repo's webhook page you should see an entry
 listed in there for it.
 
-((add pict))
+![Github Webhooks](./webhooks.png "Github Webhooks")
 
 With that, we should be all set to test it!
 
