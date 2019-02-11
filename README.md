@@ -1,6 +1,6 @@
 # HelloWorld!
 
-## My First Knative Demo / App
+## My First Knative Demo
 
 This repo contains the source code, tools and instructions for a demo that
 shows using Knative on the
@@ -11,6 +11,11 @@ are:
 - to share my experiences during this exercise
 - highlight some areas where I think Knative can be improved and I'll
   be opening up issues for these things
+
+When you run some of the scripts, it will show the commands in bold
+and the output of the commands in normal text. When it pauses, just press
+the spacebar to move to the next step. If the slow typing is annoying, press
+`f` when it pauses and it'll stop that.
 
 So, with that, let's get started...
 
@@ -34,95 +39,32 @@ Where:
 - `username` is your Dockerhub username
 - `password` is your Dockerhub password
 
-You can now either run the `demo` script to have it automatically run through
-the demo, providing commentary, or you can do it all manually.
+I store all of the secret information I use durin the demo in there. It's
+safe to put them in there than to put them into the real files of the repo
+and run the risk of checking them into github by mistake.
 
-Which ever way you run the demo, I'd run `./pods` in another window so
-you can see the Knative Services and Pods as they come-n-go. Again, make
-sure you run:
+The rest of this assumes you:
+- are already logged into the IBM Cloud (`ic login`)
+- and have all of the appropriate CLI tools installed - see:
+  https://github.com/IBM/knative101/workshop/exercise-0/README.md
 
-```
-$(ic ks cluster config --export <cluster-name>)
-```
+## Creating a Kubernetes cluster
 
-in that other window too.
-
-Also, these scripts are tested on Ubuntu, I haven't tried them on MacOS
-yet so don't be surprised if things don't work there yet. PR are welcome
-though.
-
-## Using the `demo` script
-
-If you're going to run the `demo` script then you'll also need to modify these
-lines in there:
-
-```
-export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
-export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
-export GITREPO=${GITREPO:-duglin/helloworld}
-```
-
-Change the `APP_IMAGE` and `REBUILD_IMAGE` values to use your
-Dockerhub namespace name instead of `duglin`, and change `GITREPO`
-to be the name of your Github clone of this repo - typically you should
-just need to swap `duglin` for your Github name.
-
-You'll need to create a cluster in advance. You can use `mkcluster` to do that
-or see the (Create a new cluster)[#create_a_new_cluster] section below
-if you want to do it manually.
-
-Then you'll need to install Istio and Knative, see the sections before
-for that as well.
-
-When done, make sure you also run:
-
-```
-$(ic ks cluster config --export <cluster-name>)
-```
-
-before you run the demo so your `kubectl` points to the correct cluster.
-
-### Running the demo
-
-```
-./demo [ CLUSTER_NAME ]
-```
-`CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
-already points to your IKS cluster.
-
-As the demo runs, press the spacebar to move on to the next command when it
-pauses.  If the slow typing is annoying, press `f` when it pauses and it'll
-stop that.
-
-
-## Manually running the demo | Demo details
-
-Before you begin, set these environment variables:
-
-```
-export APP_IMAGE=duglin/helloworld
-export REBUILD_IMAGE=duglin/rebuild
-export GITREPO=duglin/helloworld
-```
-
-Set `APP_IMAGE` and `REBUILD_IMAGE` values to use your
-Dockerhub namespace name instead of `duglin`, and change `GITREPO`
-to be the name of your Github clone of this repo - typically you should
-just need to swap `duglin` for your Github name.
-
-### Create a new cluster
-
-Clearly we first need a Kubernetes cluster. And, I've automated this
+Clearly, we first need a Kubernetes cluster. And, I've automated this
 (since I did it a lot durig my testing) via the `mkcluster` script
-in the repo. It assumes that you're already logged into the IBM Cloud,
-have all of the appropriate CLI tools installed and that we'll be using the
-Dallas data center. If you need instructions on how to install the tooling
-see our
-(knative 101)[https://github.com/IBM/knative101/workshop/exercise-0/README.md]
-docs.
+in the repo. The script assumes you're using the Dallas data center,
+so if not you'll need to modify it.
 
-First, we need to get some info about our LANs since the `ic ks cluster-create`
-command requires that:
+To create the cluster just run:
+```
+$ ./mkcluster <cluster-name>
+```
+
+You can then skip to the next section.
+
+
+If you decide to create it manually, then you'll first need to get some info
+about our LANs since the `ic ks cluster-create` command requires that:
 
 ```
 $ ic ks vlans --zone dal13
@@ -152,7 +94,7 @@ environment variable to point to your customized Kubernetes config file:
 $(ic ks cluster-config --export kndemo)
 ```
 
-### Installing Knative (and Istio)
+Now we can install Knative...
 
 Knative requires Istio, but luckily IKS's install of Knative will install
 Istio too - just run:
@@ -160,6 +102,8 @@ Istio too - just run:
 ```
 $ ic ks cluster-addon-enable knative CLUSTER_NAME
 ```
+If it prompts you to install Istio, just say `yes`, even if you have
+Istio already installed - worst case, it'll upgrade it for you.
 
 This will take a moment or two, and you can see it's done when two
 things happen, first you see the Istio and Knative namespaces:
@@ -170,21 +114,21 @@ NAME                 STATUS   AGE
 default              Active   39h
 ibm-cert-store       Active   39h
 ibm-system           Active   39h
-istio-system         Active   21h
-knative-build        Active   18h
-knative-eventing     Active   18h
-knative-monitoring   Active   18h
-knative-serving      Active   18h
-knative-sources      Active   18h
+istio-system         Active   21h    <----
+knative-build        Active   18h    <----
+knative-eventing     Active   18h    <----
+knative-monitoring   Active   18h    <----
+knative-serving      Active   18h    <----
+knative-sources      Active   18h    <----
 kube-public          Active   39h
 kube-system          Active   39h
 ```
 
 When you see the `istio-system` and the `knatve-...` ones appear then
-you're almost done.
+you're almost done. Press control-C to stop the watch
 
 Next, check to see if all of the pods are running. I find it easiest
-to just see if there are any pods that are not running ;-)  via this:
+to just see if there are any pods that are not running, via this:
 
 ```
 $ kubectl get pods --all-namespaces | ep -v Running
@@ -194,10 +138,62 @@ And if that list is empty, or only shows non-Istio and non-Knative pods
 (due to other things running in your cluster) then you should be go to go.
 If the list isn't empty, then give it more time for things to initialize.
 
-### Setup our network
+## Running the demo
+
+You can now either run the `demo` script to have it automatically run through
+the demo, providing commentary, or you can do it all manually.
+
+Which ever way you run the demo, I'd run `./pods` in another window so
+you can see the Knative Services and Pods as they come-n-go.
+
+Also, these scripts are tested on Ubuntu, I haven't tried them on MacOS
+yet so don't be surprised if things don't work there yet. PR are welcome
+though.
+
+### Using the `demo` script
+
+If you're going to run the `demo` script then you'll need to modify these
+lines in there:
+
+```
+export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
+export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
+export GITREPO=${GITREPO:-duglin/helloworld}
+```
+
+Change the `APP_IMAGE` and `REBUILD_IMAGE` values to use your
+Dockerhub namespace name instead of `duglin`, and change `GITREPO`
+to be the name of your Github clone of this repo - typically you should
+just need to swap `duglin` for your Github name.
+
+```
+./demo [ CLUSTER_NAME ]
+```
+`CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
+already points to your IKS cluster.
+
+When done you can jump the the (Cleaning Up)[#cleaning-up] section.
+
+
+### Manually running the demo / Demo details
+
+Before you begin, set these environment variables:
+
+```
+export APP_IMAGE=duglin/helloworld
+export REBUILD_IMAGE=duglin/rebuild
+export GITREPO=duglin/helloworld
+```
+
+Set `APP_IMAGE` and `REBUILD_IMAGE` values to use your
+Dockerhub namespace name instead of `duglin`, and change `GITREPO`
+to be the name of your Github clone of this repo - typically you should
+just need to swap `duglin` for your Github name.
+
+#### Setup our network
 
 Before we can actually use Knative we need to do some additional setup around
-how networking. To do this I have the `ingress.yaml` file:
+our networking. To do this I have the `ingress.yaml` file:
 
 ```
 # Route all *.containers.appdomain.cloud URLs to our istio gateway
@@ -265,7 +261,7 @@ Istio will block all outbound traffic - which, could take a while to figure
 out if you're used to using vanilla Kubernetes which lets all traffic through
 by default.
 
-Almost done with network, yes this is way too much work! Last, we need to
+Wr're almost done with network, yes this is way too much work! Last, we need to
 modify a Knative ConfigMap such that the default URL assigned to our apps
 isn't `example.com`, which is the default that Knative uses.
 
@@ -274,15 +270,15 @@ can get this info by running:
 
 ```
 $ ic ks cluster-get -s CLUSTER_NAME
-Name:                   kntest03
+Name:                   kndemo
 State:                  normal
 Created:                2019-02-04T21:36:18+0000
 Location:               dal13
 Master URL:             https://c2.us-south.containers.cloud.ibm.com:24730
 Master Location:        Dallas
 Master Status:          Ready (1 day ago)
-Ingress Subdomain:      kntest03.us-south.containers.appdomain.cloud
-Ingress Secret:         kntest03
+Ingress Subdomain:      kndemo.us-south.containers.appdomain.cloud
+Ingress Secret:         kndemo
 Workers:                4
 Worker Zones:           dal13
 Version:                1.12.4_1534* (1.12.5_1537 latest)
@@ -303,7 +299,7 @@ domain name.
 
 Now, we're finally done with the administrivial networking stuff.
 
-### Secrets
+#### Secrets
 
 Before we get to the real point of this, which is deploying an application,
 I needed to create a Kuberneres Secret that holds all of the private
@@ -334,7 +330,7 @@ secrets:
 - name: mysecrets
 ```
 
-You'll notice some environment variable looking fields in there. Obviously,
+You'll notice some environment variable looking values in there. Obviously,
 those are not normal Kube yaml things. To make life easier, I created
 a script called `kapply` which takes a yaml file and replaces references
 like those with their real values before invoking `kubectl`. This allows
@@ -350,7 +346,7 @@ secret/mysecrets configured
 serviceaccount/build-bot configured
 ```
 
-### Install the Kaniko build template
+#### Install the Kaniko build template
 
 Almost there! Let's install the Kaniko build template:
 
@@ -393,7 +389,7 @@ Most of what's in there should be obvious:
   be used to actually do all of the work of building things.
 - `args` are the command line flags to pass to running container
 - `env` defines some enviornment variables for the container
-` `parameters` define some parameters that users of the template can specify
+- `parameters` define some parameters that users of the template can specify
 - `steps` allows for you to define a list of things to do in order to build
   the image
 
@@ -413,7 +409,9 @@ the logic they need into an image and do whatever orchestration of steps
 within that. Let's not head down the path of inventing some kind of scripting
 language here. That's why I think it's overly complex (I don't see the need
 for `steps`) and overly simplified (if you do see the need then a simple list
-isn't sufficient in the long run).
+isn't sufficient in the long run). The point is, it should be trivially easy
+to create new BuildTemplates so that anyone can do it any time, and we don't
+need a more formalized system.
 
 And finally, originally I didn't use Build Templates, I just put a reference
 to the Kaniko image directly into my Service definition's build section and
@@ -424,7 +422,7 @@ ramble about them here :-)
 
 Anyway, moving on...
 
-### Our application
+#### Our application
 
 For this demo I'm just using a very simple HTTP server that responds
 to any request with `Hello World!`, here's the source (`helloworld.go`):
@@ -433,31 +431,31 @@ to any request with `Hello World!`, here's the source (`helloworld.go`):
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"os"
-	"strings"
-	"time"
+    "fmt"
+    "net/http"
+    "os"
+    "strings"
+    "time"
 )
 
 func main() {
-	text := "Hello World!"
+    text := "Hello World!"
 
-	rev := os.Getenv("K_REVISION")
-	if i := strings.LastIndex(rev, "-"); i > 0 {
-		rev = rev[i+1:]
-	}
+    rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-00001
+    if i := strings.LastIndex(rev, "-"); i > 0 {
+        rev = rev[i+1:]
+    }
 
-	msg := fmt.Sprintf("%s: %s\n", rev, text)
+    msg := fmt.Sprintf("%s: %s\n", rev, text)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(500 * time.Millisecond)
-		fmt.Printf("Got request\n")
-		fmt.Fprint(w, msg)
-	})
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Printf("Got request\n")
+        time.Sleep(500 * time.Millisecond)
+        fmt.Fprint(w, msg)
+    })
 
-	fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
-	http.ListenAndServe(":8080", nil)
+    fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
+    http.ListenAndServe(":8080", nil)
 }
 ```
 
@@ -465,7 +463,7 @@ The `sleep` is in there just to slow things down a bit so that when we
 increase the load on the app it'll cause one instance of the app to be
 created for each client we have generating requests.
 
-It will also print part of the `K_REVISION` environment variable so
+The app will print part of the `K_REVISION` environment variable so
 we can see which revision number of our app we're hitting.
 
 If you look in the `Makefile` you'll see how I built and pushed it
@@ -513,13 +511,15 @@ Let's explain what some of these fields do:
   so we'll just use `runLatest` which takes a single container definition.
 - `configuration`: just a wrapper. In my opinion this should be removed,
   it serves no real purpose. Under the covers Knative will create a
-  `Configuration` resource for its nested data, but that doesn't mean
+  `Configuration` resource for this nested data, but that doesn't mean
   we need to expose it to the user.
 - `revisionTemplate`: Each version of our application is called a
-  revision. So, what we're doing here is defining a version of our app
+  `revision`. So, what we're doing here is defining a version of our app
   and its `image` value.
 - `containerConcurrency`: this tells the system how many concurrent
-  requests to allow to each instance of our app at a single time.
+  requests to allow to each instance of our app at a single time. When
+  that threshold is met, the app will be scalled up and new instances
+  are created.
 
 Now we can deploy it:
 
@@ -532,8 +532,8 @@ If you're not running `pods` in another window, run it now to see what
 happened:
 
 ```
-$ ./pods --once
-Cluster: knative102
+$ ./pods
+Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
 helloworld                     helloworld-00001               True 
 
@@ -541,8 +541,10 @@ POD_NAME                                                STATUS           AGE
 helloworld-00001-deployment-78796cb584-jswh6            Running          90s
 ```
 
+When the pod is in the `Running` stae, press control-C to stop it.
+
 This shows the list of Knative services and running pods in the cluster.
-You should see your `helloworld` Knative service with one revisioned
+You should see your `helloworld` Knative service with one revision
 called `helloworld-00001`, and a pod with a really funky name but that
 starts with `helloworld-00001` - meaning it's related to revision 1.
 
@@ -552,20 +554,18 @@ Knative create a Kubernetes deployment resource.
 So, it's running - let's hit it:
 
 ```
-$ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
+$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 00001: Hello World!
 ```
 
-You'll need to replace the `knative02...` portion with the domain name
+You'll need to replace the `kndemo...` portion with the domain name
 of your cluster that you determine above.
 
-I won't bore you with the commands I used, but if you run the `demo`
-script I show you all of the various resources created as a result of
-deploying this ONE yaml files (yes, `kubectl get all` is a lie but it
-gets the point across and it's close):
+If you run the `./showresources` script you'll see all of the various
+resources created as a result of deploying this ONE yaml file:
 
 ```
-$ kubectl get all | grep -v knative.dev
+$ showresources
 
 deployment.apps/helloworld-00001-deployment
 endpoint/helloworld-00001-service
@@ -576,8 +576,6 @@ replicaset.apps/helloworld-00001-deployment-78796cb584
 service/helloworld
 service/helloworld-00001-service
 service/kubernetes
-
-$ kubectl get all | grep knative.dev
 
 buildtemplate.build.knative.dev/kaniko
 clusteringress.networking.internal.knative.dev/helloworld-rk28q
@@ -604,10 +602,10 @@ is just a one-time thing for most people), the deployment of the app itself
 was a single `kuebctl` command with a single resource definition. That's
 a huge step forward for Kube users
 
-### Adding build
+#### Adding build
 
 So, our first app is pretty simple, we just point to a pre-built container
-image. However, Knative has the ability to build it for you. Le's look
+image. However, Knative has the ability to build the image for you. Let's look
 at our new `service2.yaml` file to add this build logic:
 
 ```
@@ -653,7 +651,8 @@ The `revisionTemplate` section at the bottom is the same as before. The
   the results.
 
 As I said, it's pretty verbose, but not too much info and should be fairly
-obvious/easy to understand.
+obvious/easy to understand. But, it would be nice if it were much much
+smaller.
 
 Let's deploy this next version of our app's deployment:
 
@@ -662,11 +661,11 @@ $ ./kapply service2.yaml
 service.serving.knative.dev/helloworld configured
 ```
 
-If you're not running `pods` in another window, run it again here:
+If you're not running `./pods` in another window, run it again here:
 
 ```
-$ ./pods --once
-Cluster: knative102
+$ ./pods
+Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
 helloworld                     helloworld-00002               True 
 
@@ -677,10 +676,9 @@ helloworld-00002-deployment-5769dd7756-8n9kj            Running          22s
 
 What you'll notice is a "build pod" get created
 that will do the build as defined in the yaml. Then you'll see it vanish and a
-new `helloworld-000020-deployment...` pods appear. Notice it has "2" in there
-as the revision number, not one. This is because any change to the
-`revisionTemplate` or to the `build` section will cause a new revision to be
-created.
+new `helloworld-00002-deployment...` pod appear. Notice it has "2" in there
+as the revision number, not "1". This is because any change to the
+`configuration` section of the yaml will cause a new revision to be created.
 
 You should also notice that both revision 1 and revision 2 are running.
 That's because Knative did a rolling upgrade - and kepts the old version
@@ -694,14 +692,14 @@ the request.
 So, let's hit it:
 
 ```
-$ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
+$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 00002: Hello World!
 ```
 
 Nothing too exiciting here, it worked as expected - just notice it's showing
 `00002` as the revision number, not `00001`.
 
-### Hooking it up to Github events
+#### Hooking it up to Github events
 
 Now that we have the basics of our app dev pipeline defined, let's make it
 more exciting by having new versions of our app built and deployed
@@ -842,7 +840,7 @@ $ git push origin master
 In the `pods` window you should see something like this:
 
 ```
-Cluster: knative102
+Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
 githubsource-b5skr             githubsource-b5skr-00001       True 
 helloworld                     helloworld-00002               Unknown
@@ -865,7 +863,7 @@ pod show up, which is our new version of the app running and ready to be
 hit.
 
 ```
-$ curl -sf helloworld.default.knative102.us-south.containers.appdomain.cloud
+$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 00003: Now is the time for all good...
 ```
 
@@ -929,10 +927,10 @@ To see this rollout, we'll need to geneate some load. Make sure you've
 built the `load` tool (`make load`):
 
 ```
-$ ./load 10 30 http://helloworld.default.knative102.us-south.containers.appdomain.cloud
+$ ./load 10 30 http://helloworld.default.kndemo.us-south.containers.appdomain.cloud
 ```
 
-Replace `knative102...` with your cluster's domain name. What you should see
+Replace `kndemo...` with your cluster's domain name. What you should see
 is something like this:
 ```
 01: 00003: Now is the time for all good...                                      
@@ -950,7 +948,7 @@ is something like this:
 (( add more commentary here ))
 
 
-## Cleaning up
+### Cleaning up
 
 To clean the system so you can run things over and over, just do:
 

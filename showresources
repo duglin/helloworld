@@ -1,0 +1,13 @@
+#!/bin/bash
+
+kubectl get endpoints | grep -v NAME | sed "s/^/endpoint\//" > out1
+(cat out1 && kubectl get all 2> /dev/null ) | grep --color=never / | \
+    sed "s/\s.*//g" | sort -u > out2
+
+if [[ "$1" == "all" ]]; then
+    grep -v knative.dev out2
+	echo
+fi
+
+grep knative.dev out2
+rm -f out1 out2

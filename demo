@@ -16,21 +16,6 @@ export GITREPO=${GITREPO:-duglin/helloworld}
 
 skiptodemo=""
 
-function showResources {
-    kubectl get endpoints | grep -v NAME | sed "s/^/endpoint\//" > out1
-    (cat out1 && kubectl get all 2> /dev/null ) | grep --color=never / | \
-        sed "s/\s.*//g" | sort -u > out2
-    if [[ "$1" == "all" ]]; then
-        doit --noexec kubectl get all \| grep -v knative.dev
-        grep -v knative.dev out2
-        echo
-    fi
-    doit --noexec kubectl get all \| grep knative.dev
-    grep knative.dev out2
-    echo
-    rm -f out1 out2
-}
-
 function cleanDemo {
     echo Clean from previous run and rebuild everything
 
@@ -66,7 +51,6 @@ function cleanDemo {
 while [[ "$1" == "--"* ]]; do
     case "$1" in
     --clean)  cleanDemo ; exit 0 ;;
-    --showresources)  showResources all ; exit 0 ;;
 	--demo) skiptodemo=1 ; skip=1 ;;
     *) echo "Uknown option '$1'" ; exit 1 ;;
     esac
@@ -119,20 +103,21 @@ scroll service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
-./pods --grep "helloworld.*001.*Running"
-echo
+doit --untilgrep="helloworld.*001.*Running" ./pods --once
 
+wait curl -sf helloworld.default.${DOMAIN}
 doit curl -sf helloworld.default.${DOMAIN}
 
-showResources all
+doit ./showresources all
 
 scroll service2.yaml
 doit ./kapply service2.yaml
 
 comment Wait for the new version to be deployed
-./pods --grep "helloworld.*002.*Running"
+doit --untilgrep="helloworld.*002.*Running" ./pods --once
 echo
 
+wait "curl -sf helloworld.default.${DOMAIN} | grep 002"
 doit curl -sf helloworld.default.${DOMAIN}
 comment Same output as before but with new revision number
 
@@ -142,20 +127,16 @@ comment --pause "Let's deploy the rebuild function that github will call"
 # doit ./kapply -t rebuild.yaml
 scroll rebuild.yaml
 doit ./kapply rebuild.yaml
-while ! kubectl get ksvc | grep rebuild.*True > /dev/null 2>&1 ; do
-  sleep 2
-done
+wait "kubectl get ksvc | grep rebuild.*True"
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
 # doit ./kapply -t github.yaml
 scroll github.yaml
 doit ./kapply github.yaml
-while ! kubectl get ksvc | grep githubsource.*True > /dev/null 2>&1 ; do
-  sleep 1
-done
+wait "kubectl get ksvc | grep githubsource.*True"
 
 comment "Now let's edit our app and push it to github"
-if [[ -n "${skip}" ]]; then
+if [[ -n "${skip}" || -n "${useSaved}" ]]; then
   STRING="Dogs rule!! Cats drool!!"
   doit sed -i "\"s/text :=.*/text := \\\"${STRING}\\\"/\"" helloworld.go
 else
@@ -173,22 +154,14 @@ comment "While we wait, let's look at the 'trigger' in the service"
 scroll service2.yaml
 
 comment "Waiting for new version (look for '$STRING')"
-skip="1" doit --noexec "curl -sf helloworld.default.${DOMAIN}"
 
-while true ; do
-  sleep 9
-  out=$(curl -sf helloworld.default.${DOMAIN})
-  echo ${out}
-  echo "${out}" | grep "^[0-9]*: ${STRING}$" > /dev/null || continue
-  break
-done
-
-echo
+skip="1" doit --untilgrep="^[0-9]*: ${STRING}$" --norepaint --pausetime=8 \
+  "curl -sf helloworld.default.${DOMAIN}"
 
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
 doit ./kapply -p ksvc/helloworld service-patch.json
 
-doit --noscroll ./load 10 30 http://helloworld.default.${DOMAIN}
+doit --noscroll --slowoutput ./load 10 30 http://helloworld.default.${DOMAIN}
 
-showResources all
+doit ./showresources all

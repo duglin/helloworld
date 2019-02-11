@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 func Run(cmd string, args ...string) string {
@@ -21,21 +22,32 @@ func Run(cmd string, args ...string) string {
 }
 
 func main() {
+	ready := false
 	apikey := os.Getenv("IC_KEY")
 	cluster := os.Getenv("CLUSTER")
 
 	fmt.Printf("Cluster: %s\nAPIKey: %s\n", cluster, apikey[:3])
 
-	Run("bx", "login", "--apikey", apikey, "-r", "us-south")
-	Run("bx", "config", "--check-version", "false")
-	export := Run("bx", "ks", "cluster-config", "-s", "--export", cluster)
-	export = strings.SplitN(export, "=", 2)[1]
-	export = strings.TrimSpace(export)
+	// Put this in the background so we don't slow down the
+	// creation of the Knative rebuild service
+	go func() {
+		Run("bx", "login", "--apikey", apikey, "-r", "us-south")
+		Run("bx", "config", "--check-version", "false")
+		export := Run("bx", "ks", "cluster-config", "-s", "--export", cluster)
+		export = strings.SplitN(export, "=", 2)[1]
+		export = strings.TrimSpace(export)
 
-	fmt.Printf("export KUBCONFIG=%s\n", export)
-	os.Setenv("KUBECONFIG", export)
+		fmt.Printf("export KUBCONFIG=%s\n", export)
+		os.Setenv("KUBECONFIG", export)
+		ready = true
+	}()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Wait for our IBM Cloud setup to finish
+		for !ready {
+			time.Sleep(200 * time.Millisecond)
+		}
+
 		msg := map[string]interface{}{}
 
 		body, _ := ioutil.ReadAll(r.Body)

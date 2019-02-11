@@ -1,3 +1,5 @@
+# See: https://github.com/duglin/tools/tree/master/demoscript
+#
 # SAVE=1      Save output to a tar file for off-line running
 # SKIP=1      Do not wait for user to press a key to continue
 # RECOVER=1   Use the canned output when a command fails
@@ -35,6 +37,16 @@ function myscript() {
     else
     	script -efq -a /dev/null -c "$*"
     fi
+}
+
+function slowOutput() {
+    oldIFS=$IFS
+	IFS=""
+	while read -s -n 1 ch ; do
+	    echo -n "$ch"
+		sleep 0.00001
+	done
+	IFS=$oldIFS
 }
 
 function slowType() {
@@ -101,6 +113,10 @@ function doit() {
 	local noscroll=${NOSCROLL:-}
 	local postcmd=""
 	local retryonfail=${RETRYONFAIL:-}
+	local untilgrep=""
+	local pauseTime="1"
+	local norepaint=""
+	local slowoutput=""
 
 	while [[ "$1" == "--"* ]]; do
 		opt="$1"
@@ -115,8 +131,14 @@ function doit() {
 			--scroll      ) noscroll=""     ;;
 			--retryonfail ) retryonfail="1" ;;
 			--post*       ) postcmd="${opt#*=}" ;;
+			--untilgrep*  ) untilgrep="${opt#*=}" ;;
+			--pausetime*  ) pauseTime="${opt#*=}" ;;
+			--norepaint   ) norepaint="1"   ;;
+			--slowoutput  ) slowoutput="1"  ;;
 		esac
 	done
+
+  let cmdNum=cmdNum+1
 
   while true ; do
 	set +e
@@ -127,7 +149,6 @@ function doit() {
 	pause
 	echo
 
-	saveFile="run.${cmdNum}"
 	local lines=$(tput lines)
 	let lines=lines-3
 	moreCMD="more -$lines"
@@ -138,44 +159,94 @@ function doit() {
 		moreCMD="$postcmd | $moreCMD"
 	fi
 
+	daCmd=" $* "
+
 	# Unless we're told to not execute it, do it
 	if [[ "$noexec" == "" ]]; then
-		if [[ "$fakeit" != "" ]]; then
-			# Faking it!
-			if tar -xf "${saveTar}" "${saveFile}" > /dev/null 2>&1; then
-			    # echo "** Using saved output ${saveFile} **"
-				cp "${saveFile}" out
-				rm "${saveFile}"
-				cat out | eval ${moreCMD[@]}
-			
-				if [[ "$shouldfail" == "" ]]; then
-					rc=0
-				else
-					rc=1
-				fi
-			else
-				if [[ "$fakeit" == "2" ]]; then
-					# file doesn't exist so just try to run it instead
-					fakeit=""
-				else
-					echo -n > out
-				fi
-			fi
-		fi
+        # Run the cmd
 
-		if [[ "$fakeit" == "" ]]; then
-			# Run the cmd
-			bash -c " $* " 2>&1 | tee out | eval ${moreCMD[@]}
-			rc=${PIPESTATUS[0]}
+		oldSize=0
+		version=0
+		while true ; do
+	        saveFile="run.${cmdNum}"
+			if [[ -n "${untilgrep}" ]]; then
+				let version=version+1
+				saveFile="${saveFile}.${version}"
+			fi
+
+		    if [[ "$fakeit" != "" ]]; then
+			    # Faking it!
+			    daCmd="tar -xOf ${saveTar} ${saveFile}"
+		    fi
+
+			if [[ "$fakeit" != "" ]] && [[ -n "${slowoutput}" ]]; then
+			    daCmd="${daCmd} | bash -c 'IFS= ; while read -n1 -d ch ; do echo -n \$ch ; x=0 ; while ((x<300)); do let x=x+1 ; done ; done'"
+			fi
+
+			if [[ -n "${untilgrep}" ]]; then
+				if [[ -z "${norepaint}" ]] && (( oldSize != 0 )); then
+				    printf "\033[%dA" $oldSize
+				fi
+
+			    bash -c "${daCmd}" 2>&1 | tee out | while read a ; do
+				    echo -n "$a"
+					printf "\033[K\\n"
+				done
+			    rc=${PIPESTATUS[0]}
+
+			    newSize=$(wc -l out | sed "s/ .*//")
+
+				if [[ -z "${norepaint}" ]]; then
+					while (( newSize  < oldSize )); do
+					    printf "\033[K\\n"
+						let newSize=newSize+1
+					done
+				fi
+
+			    oldSize=${newSize}
+
+			    # bash -c "${daCmd}" > out 2>&1
+			    # rc=$?
+				# if [[ -z "${norepaint}" ]] && (( oldSize != 0 )); then
+			        # let size=0
+				    # printf "\033[%dA" $oldSize
+					# while (( size < oldSize )); do
+					    # printf "\033[K\\n"
+						# let size=size+1
+					# done
+				    # printf "\033[%dA" $oldSize
+				# fi
+				# cat out | while read a ; do
+				    # echo -n "$a"
+					# printf "\033[K\\n"
+				# done
+			else
+			    bash -c "${daCmd}" 2>&1 | tee out | eval ${moreCMD[@]}
+			    rc=${PIPESTATUS[0]}
+			fi
 
 			# Save the output if we're asked to
-			if [[ "$save" != "" ]]; then
-				cp out "${saveFile}"
+			if [[ "$fakeIt" == "" && "$save" != "" ]]; then
+			    cp out "${saveFile}"
 				# tar --delete -f "${saveTar}" "${saveFile}" > /dev/null 2>&1 || true
 				tar -rf "${saveTar}" "${saveFile}"
 				rm "${saveFile}"
 			fi
-		fi
+
+			if [[ -z "${untilgrep}" ]]; then
+			    break
+			fi
+
+			if grep "${untilgrep}" out > /dev/null 2>&1 ; then
+			    break
+			else
+			    read -s -n 1 -t "${pauseTime}" ch || true
+			    if [[ "$ch" != "" ]]; then
+			        break
+				fi
+			fi
+
+		done
 
 		# If the cmd failed see if we should use the canned output
 		if [[ "$recover" != "" ]]; then
@@ -187,7 +258,6 @@ function doit() {
 				rm "${saveFile}"
 			fi
 		fi
-		let cmdNum=cmdNum+1
 	else
 		# We're not really executing it, just showing the cmd
 		echo -n > out
