@@ -713,7 +713,7 @@ For this to work there are a couple of things we need to setup:
 
   As of now, Knative does not have a good way to trigger a new build of
   a service other than for "something" to twiddle the configuration
-  of the Service. So, remember in our previous section we add the
+  of the Service. So, remember in our previous section we added the
   build section to our Service, that was a "twiddle" and we saw it
   do a build. For our purposes, or `rebuild` Service will do almost
   the same thing, it will edit the Service's build section in a
@@ -721,9 +721,9 @@ For this to work there are a couple of things we need to setup:
   a build.
 
 - we'll also need a `github` event source. This is a special resource
-  types in Knative that does two things:
-  - it will create a webhook in your github repo to send events to
-    your Knative installtion
+  type in Knative that does two things:
+  - it will create a webhook in out github repo to send events to
+    our Knative installation - which is really a github Knative service
   - it will define the "event sink" for these events, which in our case
     is our `rebuild` Service.
 
@@ -752,9 +752,9 @@ spec:
 
 This should look very much like our `helloworld` service definition.
 For the most part it is just defining the container image to run
-and defining some environment variables. Those are there so that the
-process can talk to IBM Cloud and know which cluster we're using.
-I don't go into the details of the code, you can look at the
+`${REBUILD_IMAGE}`, and defining some environment variables. Those are there
+so that the process can talk to IBM Cloud and know which cluster we're using.
+I won't go into the details of the code, you can look at the
 `rebuild.sh` script if you really want to see the details.
 
 Let's deploy it:
@@ -802,7 +802,7 @@ Walking through the fields:
   to verify they're authenticated with your Knative subscription. This can
   basically be any random string you want
 - `sink`: this is the link to our `rebuild` service. This field holds
-  the destination for the incoming event. It could be a service (Knative
+  the destination for the incoming events. It could be a service (Knative
   or Kube), or it could be a Knative Channel - which I don't cover in this
   demo.
 
@@ -837,7 +837,7 @@ $ git commit -m "my demo fun"
 $ git push origin master
 ```
 
-In the `pods` window you should see something like this:
+In the `./pods` window you should see something like this:
 
 ```
 Cluster: kndemo
@@ -874,10 +874,10 @@ There ya go! Notice it say "0003" not "0002".
 
 That's all ok, but notice it rolled out the new version of app and totally
 replaced the existing running version. In a more real-world scenario we'd
-probably want to roll it out more slowly. To do that, we're going to do
+probably want to roll it out more slowly. To do that, we're going to
 actually do a "rollback" to a previous revision.
 
-Let's look at the `service-patch.yaml` file we're going to use to do that:
+Let's look at the `service-patch.json` file we're going to use to do that:
 
 ```
 [{"op":"replace",
@@ -901,7 +901,7 @@ Let's look at the `service-patch.yaml` file we're going to use to do that:
 }]
 ```
 
-This will replace the service's `spec` section, which has `runLatest` property
+This will replace the service's `spec` section, which has `runLatest` property,
 with a `release` instead. This type of Service configuration sets up a
 rolling upgrade mechanism. Notice in the `revisions` property we list
 two revision names, 00003 and 00002. The first one in the list indicates
