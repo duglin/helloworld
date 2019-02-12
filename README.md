@@ -4,7 +4,7 @@
 
 This repo contains the source code, tools and instructions for a demo that
 shows using Knative on the
-(IBM Cloud Kubernetes Service)[https://cloud.ibm.com]. You can pretty easily
+[IBM Cloud Kubernetes Service](https://cloud.ibm.com). You can pretty easily
 convert it to work on other platforms. The main reasons behind this
 are:
 - for me to learn more about Knative
@@ -16,6 +16,10 @@ When you run some of the scripts, it will show the commands in bold
 and the output of the commands in normal text. When it pauses, just press
 the spacebar to move to the next step. If the slow typing is annoying, press
 `f` when it pauses and it'll stop that.
+
+Also, these scripts are tested on Ubuntu, I haven't tried them on MacOS
+yet so don't be surprised if things don't work there yet. PR are welcome
+though.
 
 So, with that, let's get started...
 
@@ -39,35 +43,34 @@ Where:
 - `username` is your Dockerhub username
 - `password` is your Dockerhub password
 
-I store all of the secret information I use durin the demo in there. It's
-safe to put them in there than to put them into the real files of the repo
+I store all of the secret information I use during the demo in there. It's
+safer to put them in there than to put them into the real files of the repo
 and run the risk of checking them into github by mistake.
 
 The rest of this assumes you:
-- are already logged into the IBM Cloud (`ic login`)
+- are already logged into the IBM Cloud (`ibmcloud login`)
 - and have all of the appropriate CLI tools installed - see:
   https://github.com/IBM/knative101/workshop/exercise-0/README.md
 
 ## Creating a Kubernetes cluster
 
 Clearly, we first need a Kubernetes cluster. And, I've automated this
-(since I did it a lot durig my testing) via the `mkcluster` script
-in the repo. The script assumes you're using the Dallas data center,
-so if not you'll need to modify it.
+via the `mkcluster` script in the repo. The script assumes you're using the
+Dallas data center, so if not you'll need to modify it.
 
 To create the cluster just run:
 ```
-$ ./mkcluster <cluster-name>
+$ ./mkcluster CLUSTER_NAME
 ```
 
 You can then skip to the next section.
 
 
 If you decide to create it manually, then you'll first need to get some info
-about our LANs since the `ic ks cluster-create` command requires that:
+about our LANs since the `ibmcloud ks cluster-create` command requires that:
 
 ```
-$ ic ks vlans --zone dal13
+$ ibmcloud ks vlans --zone dal13
 OK
 ID        Name   Number   Type      Router         Supports Virtual Workers
 PRIV_??          1240     private   bcr02a.dal13   true
@@ -76,12 +79,13 @@ PUB_??           996      public    fcr02a.dal13   true
 
 Now we can create the cluster. In this case we'll create it with 3 worker
 nodes.  Replace the `PRIV_??` and `PUB_??` with  the values you see from the
-`ic ks vlans` command - and replace `dal13` with whatever data center you
+`ibmcloud ks vlans` command - and replace `dal13` with whatever data center you
 want to use.
 
 ```
-$ ic ks cluster-create --name kndemo --zone dal13 --machine-type ${MACHINE} \
-    --workers 3 --private-vlan PRIV_?? --public-vlan PUB_??  \
+$ ibmcloud ks cluster-create --name CLUSTER_NAME --zone dal13 \
+    --machine-type ${MACHINE} --workers 3 \
+	--private-vlan PRIV_?? --public-vlan PUB_??  \
     --kube-version 1.13.2
 Creating cluster...
 OK
@@ -91,16 +95,16 @@ Once the cluster is ready you'll need to set your `KUBECONFIG`
 environment variable to point to your customized Kubernetes config file:
 
 ```
-$(ic ks cluster-config --export kndemo)
+$(ibmcloud ks cluster-config --export CLUSTER_NAME)
 ```
 
 Now we can install Knative...
 
-Knative requires Istio, but luckily IKS's install of Knative will install
-Istio too - just run:
+Knative requires Istio, but luckily IBM Cloud's Kubernetes service's install
+of Knative will install Istio too - just run:
 
 ```
-$ ic ks cluster-addon-enable knative CLUSTER_NAME
+$ ibmcloud ks cluster-addon-enable knative CLUSTER_NAME
 ```
 If it prompts you to install Istio, just say `yes`, even if you have
 Istio already installed - worst case, it'll upgrade it for you.
@@ -131,7 +135,7 @@ Next, check to see if all of the pods are running. I find it easiest
 to just see if there are any pods that are not running, via this:
 
 ```
-$ kubectl get pods --all-namespaces | ep -v Running
+$ kubectl get pods --all-namespaces | grep -v Running
 ```
 
 And if that list is empty, or only shows non-Istio and non-Knative pods
@@ -144,11 +148,9 @@ You can now either run the `demo` script to have it automatically run through
 the demo, providing commentary, or you can do it all manually.
 
 Which ever way you run the demo, I'd run `./pods` in another window so
-you can see the Knative Services and Pods as they come-n-go.
-
-Also, these scripts are tested on Ubuntu, I haven't tried them on MacOS
-yet so don't be surprised if things don't work there yet. PR are welcome
-though.
+you can see the Knative Services and Pods as they come-n-go. Make sure
+you run `$(ibmcloud ks cluster-config --export CLUSTER_NAME)` in that other
+window too.
 
 ### Using the `demo` script
 
@@ -172,7 +174,7 @@ just need to swap `duglin` for your Github name.
 `CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
 already points to your IKS cluster.
 
-When done you can jump the the (Cleaning Up)[#cleaning-up] section.
+When done you can jump the the [Cleaning Up](#cleaning-up) section.
 
 
 ### Manually running the demo / Demo details
@@ -193,7 +195,13 @@ just need to swap `duglin` for your Github name.
 #### Setup our network
 
 Before we can actually use Knative we need to do some additional setup around
-our networking. To do this I have the `ingress.yaml` file:
+our networking. Actually, that's a lie. Without any changes to Knative you
+could let it default to use `example.com` as the domain name for your services
+but then that means when you access them you'll need to manaually set the
+HTTP `Host` header to be `<app-name>.example.com` instead of something
+meaningful. But, that's no good for a demo, so I needed to fix this so that
+I could use the DNS name that IBM Cloud Kubernetes Service setup for me.
+To do this I have this `ingress.yaml` file:
 
 ```
 # Route all *.containers.appdomain.cloud URLs to our istio gateway
@@ -248,7 +256,7 @@ Kubernetes Service. Two interesting things about this:
   get a URL (route) of the form
   `<app-name>.<namespace>.containers.appdomain.cloud`. This Istio rule will
   (due to the wildcard) will allow us to deploy any application and not have
-  to setup a special rule for each application to get it to route its
+  to set up a special rule for each application to get it to route its
   traffic to Istio.
 - The Istio gateway we're using here is what will manage all of the advanced
   networking that we'll leverage, such as load-balancing and traffic routing
@@ -261,15 +269,16 @@ Istio will block all outbound traffic - which, could take a while to figure
 out if you're used to using vanilla Kubernetes which lets all traffic through
 by default.
 
-Wr're almost done with network, yes this is way too much work! Last, we need to
-modify a Knative ConfigMap such that the default URL assigned to our apps
-isn't `example.com`, which is the default that Knative uses.
+We're almost done with our network setup, yes this is way too much work!
+Last, we need to modify a Knative ConfigMap such that the default URL
+assigned to our apps isn't `example.com`, which is the default that Knative
+uses.
 
 Before we can do that, we need to know your cluster's domain name. You
 can get this info by running:
 
 ```
-$ ic ks cluster-get -s CLUSTER_NAME
+$ ibmcloud ks cluster-get -s CLUSTER_NAME
 Name:                   kndemo
 State:                  normal
 Created:                2019-02-04T21:36:18+0000
@@ -295,15 +304,27 @@ $ kubectl edit cm/config-domain -n knative-serving
 ```
 
 In there, change any occurrence of `example.com` with your cluster's
-domain name.
+domain name. This ConfigMap allows for you to define which Knative apps
+get assigned which domain name. While in this example we just have `""`
+as the value of our one config map entry, which means it's the default,
+you could technically put a selectiion criteria in there to look for
+certain apps with certain labels. While I know it's the Kube-way to use
+label selectors for this, I'm not sure this is necessarily better than
+just allowing people to specify the domain name (or entire URL) in the
+Service definition itself. The level of indirection feels overly complex
+to me. That's not to say that Knative couldn's also support this label
+selector mechanism, but I'd prefe to have it kick-in only if not explicitly
+set within the Service itself. One of my goals in all of this is to allow
+people to do all of their Service management via the one Knative Service
+resource.
 
-Now, we're finally done with the administrivial networking stuff.
+We're finally done with the administrivial networking stuff.
 
 #### Secrets
 
 Before we get to the real point of this, which is deploying an application,
 I needed to create a Kuberneres Secret that holds all of the private
-keys/tokens/usernames/etc... that will be used during the exercises.
+keys/tokens/usernames/etc... that will be used during the demo.
 
 For that I have the `secrets.yaml` file:
 
@@ -333,7 +354,7 @@ secrets:
 You'll notice some environment variable looking values in there. Obviously,
 those are not normal Kube yaml things. To make life easier, I created
 a script called `kapply` which takes a yaml file and replaces references
-like those with their real values before invoking `kubectl`. This allows
+like those with their real values before invoking `kubectl apply`. This allows
 me to share my yaml with you w/o asking you to modify these files and run
 the risk of you checking them into your github repo by mistake. All you need
 to do is create the `.secrets` files I mentioned at the top of this README.
@@ -341,7 +362,7 @@ to do is create the `.secrets` files I mentioned at the top of this README.
 The you can create the secret via:
 
 ```
-$ ./kapply secrets.yal
+$ ./kapply secrets.yaml
 secret/mysecrets configured
 serviceaccount/build-bot configured
 ```
@@ -387,8 +408,8 @@ spec:
 Most of what's in there should be obvious:
 - `image: gcr.io/kaniko-project/executor` defines the container image that will
   be used to actually do all of the work of building things.
-- `args` are the command line flags to pass to running container
-- `env` defines some enviornment variables for the container
+- `args` are the command line flags to pass to builder container
+- `env` defines some enviornment variables for that container
 - `parameters` define some parameters that users of the template can specify
 - `steps` allows for you to define a list of things to do in order to build
   the image
@@ -411,7 +432,7 @@ language here. That's why I think it's overly complex (I don't see the need
 for `steps`) and overly simplified (if you do see the need then a simple list
 isn't sufficient in the long run). The point is, it should be trivially easy
 to create new BuildTemplates so that anyone can do it any time, and we don't
-need a more formalized system.
+need a more formalized/complex system.
 
 And finally, originally I didn't use Build Templates, I just put a reference
 to the Kaniko image directly into my Service definition's build section and
@@ -425,7 +446,8 @@ Anyway, moving on...
 #### Our application
 
 For this demo I'm just using a very simple HTTP server that responds
-to any request with `Hello World!`, here's the source (`helloworld.go`):
+to any request with `Hello World!`, here's the source
+([`helloworld.go`](https://github.com/duglin/helloworld/blob/master/helloworld.go)):
 
 ```
 package main
@@ -541,15 +563,18 @@ POD_NAME                                                STATUS           AGE
 helloworld-00001-deployment-78796cb584-jswh6            Running          90s
 ```
 
-When the pod is in the `Running` stae, press control-C to stop it.
+The output of `pods` shows the list of Knative services (at the top)
+followed by the list of active pods.
 
-This shows the list of Knative services and running pods in the cluster.
+When the pod is in the `Running` state, press control-C to stop it.
+
 You should see your `helloworld` Knative service with one revision
 called `helloworld-00001`, and a pod with a really funky name but that
 starts with `helloworld-00001` - meaning it's related to revision 1.
 
 Notice the word "deployment" in there - that's because under the covers
-Knative create a Kubernetes deployment resource.
+Knative create a Kubernetes deployment resource and this pod is related
+to that deployment.
 
 So, it's running - let's hit it:
 
@@ -590,7 +615,7 @@ service.serving.knative.dev/helloworld
 
 The first list is the list of native Kube resources, and the second list
 contains the Knative ones. That's a lot of stuff!  And I mean that in a
-good way! One of my personal goals for Knative is to offer up a more user
+good way! One of my goals for Knative is to offer up a more user
 friendly user experience for Kube users. Sure Kube has a ton of features
 but with that flexibility has come complexity. Think about how much learning
 and work is required to setup all of these resources that Knative as done
@@ -606,7 +631,9 @@ a huge step forward for Kube users
 
 So, our first app is pretty simple, we just point to a pre-built container
 image. However, Knative has the ability to build the image for you. Let's look
-at our new `service2.yaml` file to add this build logic:
+at the
+[`service2.yaml`](https://github.com/duglin/helloworld/blob/master/service2.yaml)
+file to add this build logic:
 
 ```
 apiVersion: serving.knative.dev/v1alpha1
@@ -643,11 +670,12 @@ spec:
 The `revisionTemplate` section at the bottom is the same as before. The
 `build` section is pretty verbose, but let's focus on the key bits:
 - `serviceAccountName`: this is the Kube Service Account to use when
-  running the build containers.
+  running the builder containers.
 - `source`: points to our source code. In this case we're pointing to a
   Github repo - and it's `master` branch
-- template`: refers to the Knative Build Template to use to build the image.
-  In this case we're passing in the name of the DockerHub repo to store
+- `template`: refers to the Knative Build Template to use to build the image,
+  which refers to the Kaniko build template we deployed earlier..
+  Also, we're passing in the name of the DockerHub repo to store
   the results.
 
 As I said, it's pretty verbose, but not too much info and should be fairly
@@ -671,6 +699,7 @@ helloworld                     helloworld-00002               True
 
 POD_NAME                                                STATUS           AGE
 helloworld-00001-deployment-d9c684bbf-267hc             Running          2m32s
+helloworld-00002-pod-7aeb9b                             Init:2/3         15s
 helloworld-00002-deployment-5769dd7756-8n9kj            Running          22s
 ```
 
@@ -722,12 +751,12 @@ For this to work there are a couple of things we need to setup:
 
 - we'll also need a `github` event source. This is a special resource
   type in Knative that does two things:
-  - it will create a webhook in out github repo to send events to
+  - it will create a webhook in our github repo to send events to
     our Knative installation - which is really a github Knative service
   - it will define the "event sink" for these events, which in our case
     is our `rebuild` Service.
 
-Let's look at the `rebuild` service (`rebuild.yaml`):
+Let's look at the `rebuild` service ([`rebuild.yaml`](https://github.com/duglin/helloworld/blob/master/rebuild.yaml)):
 ```
 apiVersion: serving.knative.dev/v1alpha1
 kind: Service
@@ -755,7 +784,25 @@ For the most part it is just defining the container image to run
 `${REBUILD_IMAGE}`, and defining some environment variables. Those are there
 so that the process can talk to IBM Cloud and know which cluster we're using.
 I won't go into the details of the code, you can look at the
-`rebuild.sh` script if you really want to see the details.
+[`rebuild.sh`](https://github.com/duglin/helloworld/blob/master/rebuild.sh)
+script if you really want to see the details.
+
+One thing I will mention here though, when I first wrote the rebuild service
+I had a very single-purpose workflow in mind. By that I mean, I knew the
+rebuild service would only be called when we got an event, and it only had
+to call the `rebuild.sh` file to do its job. So I wrote the code in
+[`rebuild.go`](https://github.com/duglin/helloworld/blob/master/rebuild.go)
+to do **just** that - it would do nothing but call `rebuild.sh`. I completely
+forgot that this is a Knative Service! Meaning, it is meant to be an HTTP
+server waiting for requests - it is not a single-run entity. And, because I
+didn't have an HTTP server as part of its logic, after it invoked the
+`rebuild.sh` script, it would exit. But then, of course, Knative/Kube would
+interpret this as a "crash" and restart it - resulting in an endless loop of
+rebuilds! I'm mentioning this because as you start to chain Services
+(or Functions) together, it'll be easy to think of them as simple RPC
+entities, and they're not - they're actually mini servers and need to be
+written that way. It's obvious when you think about it, but I thought
+I'd share my mental lapse.
 
 Let's deploy it:
 
@@ -765,7 +812,7 @@ service.serving.knative.dev/rebuild created
 ```
 
 Moving on to the Github event source - the yaml for that one is this
-(`github.yaml`):
+([`github.yaml`](https://github.com/duglin/helloworld/blob/master/github.yaml)):
 
 ```
 apiVersion: sources.eventing.knative.dev/v1alpha1
@@ -792,7 +839,7 @@ spec:
 ```
 
 Walking through the fields:
-- `eventTypes`: specified which Github events we're interested in. In this
+- `eventTypes`: specifies which Github events we're interested in. In this
   case we just need `push` but for fun/testing I also include `issues`
 - `ownerAndRepository`: the repo org and name
 - `acessToken`: this is the [Github Personal Access
@@ -814,14 +861,19 @@ githubsource.sources.eventing.knative.dev/githubsource created
 ```
 
 If you go to your gitrepo repo's webhook page you should see an entry
-listed in there for it.
+listed in there for it - and it should look something like this:
 
 ![Github Webhooks](./webhooks.png "Github Webhooks")
 
+Don't be surprised if the green check is actually a red "X", sometimes
+the first (a verification message) has issues.
+
 With that, we should be all set to test it!
 
-If you modify `helloworld.go` and push it to the `master` branch it should
-initiate the workflow.  In this case I'm going to movify the line in there:
+If you modify
+[`helloworld.go`](https://github.com/duglin/helloworld/blob/master/helloworld.go)
+and push it to the `master` branch it should
+initiate the workflow.  In this case I'm going to modify the line in there:
 ```
 text := "Hello World!"
 ```
@@ -853,21 +905,24 @@ helloworld-00003-pod-6b8b9b                             Init:2/3         25s
 rebuild-00001-deployment-849cb99967-rnwsf               Running          43s
 ```
 
-Since the `github` and `rebuild` actions are both Knative service, when
-the Github event came into our cluster those services were spun up, if not
+Since the `github` and `rebuild` actions are both Knative service you'll
+see them listed in the top section, and when
+the Github event came into our cluster instances of those services were spun
+up, if not
 already running. Notice the `helloworld-00003-pod-6b8b9b` pod. That's the
 build pod for revision 3 (the next version) of our app.
 
 Eventually, that pod will go away and you should see a new "deployment"
 pod show up, which is our new version of the app running and ready to be
-hit.
+hit:
 
 ```
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 00003: Now is the time for all good...
 ```
 
-There ya go! Notice it say "0003" not "0002".
+There ya go! Notice it say "0003" not "0002", and shows our new text instead
+of `Hello World!`.
 
 
 ### A/B Testing
@@ -877,7 +932,9 @@ replaced the existing running version. In a more real-world scenario we'd
 probably want to roll it out more slowly. To do that, we're going to
 actually do a "rollback" to a previous revision.
 
-Let's look at the `service-patch.json` file we're going to use to do that:
+Let's look at the
+[`service-patch.json`](https://github.com/duglin/helloworld/blob/master/service-patch.json)
+file we're going to use to do that:
 
 ```
 [{"op":"replace",
@@ -945,10 +1002,28 @@ is something like this:
 10: 00003: Now is the time for all good...  
 ```
 
-(( add more commentary here ))
+## Summary
+
+With that we're run through a pretty extensive demo. To recap, we:
+- deployed a pre-built container image as a Knative service
+- added logic to that Service definition so Knative could build it for us
+- added a "trigger" mechanism so that as changes are made in our github
+  repo, that build logic would happen automatically
+- performed a slow rolling upgrade between two versions of our app
+
+AND, notice that aside from initial setup, we pretty much did all of that
+via one resource definition.
+
+Now, some things that we glossed over...
+
+During the rolling upgrade we listed some revision names in the the
+`revisions` array. That's ok when you know exactly which revisions you
+want to deploy but as things change you won't want to continually update
+those values. There's work underway to allow you to put special names
+in there to mean 
 
 
-### Cleaning up
+## Cleaning up
 
 To clean the system so you can run things over and over, just do:
 
