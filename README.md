@@ -1020,7 +1020,39 @@ During the rolling upgrade we listed some revision names in the the
 `revisions` array. That's ok when you know exactly which revisions you
 want to deploy but as things change you won't want to continually update
 those values. There's work underway to allow you to put special names
-in there to mean 
+in there to mean "current" or "next" - and the system will just know what
+revision names/numbers to use. So that will help a lot.
+
+However, the names given to the revisions are machine generated and as such
+I don't think are very useful for end-users. While I doubt we want to require
+people to name each and every revisions, it would be nice if there was some
+way for the user to "tag" a revision so they can easily reference it later.
+It would also be a nice way of saying "this one is special and I might need
+to reference it again later". For example, if it's an official release.
+
+One thing I didn't get into was that you can make changes to the
+`revisionTemplate` in the Service and as you do new revisions of your
+app will be created. When you're using the `release` type of Service though
+those edits apply to the "candidate" revisions you're slowly rolling out
+to. In some ways this is nice because it's a convenient way to incrementally
+rollout changes. However, it seems to make it harder for someone to know
+exactly what is running in the system.
+
+For example, there's no easy way
+(via the `Service` resource) to see the configuration for the current and
+candidate revisions side-by-side to see what's going on. Right now you'd have
+to go and track down the Revision resources and look at those. It seems
+to me that it would be easier for people to understand the state of the
+system if they could not only see but define for the entire definition of the
+Service and all of its currently running revisions at one time. This would
+also allow them to specify more than 2 at a time - and what percentage of
+the traffic should go to each one. The idea that there's only ever going to
+be two revisions of the same app at one time feels a bit limiting to me.
+
+However, overall what's out there today is a HUGE useability improvement
+for developers. The idea of being able to create and manipulate the Kubernetes
+resource to do all of these (what I consider) advanced semantics is really
+very exciting, and I can't wait to see how things progress.
 
 
 ## Cleaning up
