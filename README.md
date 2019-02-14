@@ -1002,6 +1002,22 @@ is something like this:
 10: 00003: Now is the time for all good...  
 ```
 
+One interesting thing to mention... if you were paying attention, during
+the update of the service you should have seen a `00004` version of the
+service being built and deployed in the `pods` window. I believe this happened
+because Knative detected a change in the service definition and any change
+results in a new version being built. Normally this might be ok, however, in
+this case the change actually wasn't a change. The configuration of the
+service matches the defintion of the `00002` version that we're trying to
+migrate to. It seems to me that this new version should not have been built
+at all. No real harm was done in this case because even though it was deployed,
+it also vanished due to no traffic being routed to it. However, this means
+that the `:latest` version of this image in DockerHub doesn't match the latest
+revision that I (as a user) would expect it to be. Technically, it's probably
+the same bits in my case, but it's also possible that the build resulted in
+some slight difference that could result in me needing to do a lot of digging
+to notice that a new version was built without my knowledge.
+
 ## Summary
 
 With that we're run through a pretty extensive demo. To recap, we:
