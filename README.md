@@ -113,6 +113,13 @@ $ ibmcloud ks cluster-addon-enable knative CLUSTER_NAME
 If it prompts you to install Istio, just say `yes`, even if you have
 Istio already installed - worst case, it'll upgrade it for you.
 
+Since Knative is still very much a work-in-progress, and while the IKS
+team will try to keep up with the latest versions, if you happen to catch
+things at a time when the IKS install of Knative is behind the latest
+version, just follow
+[these instructions](https://github.com/knative/docs/blob/master/install/Knative-with-IKS.md)
+for how to install the latest Knative manually.
+
 This will take a moment or two, and you can see it's done when two
 things happen, first you see the Istio and Knative namespaces:
 
