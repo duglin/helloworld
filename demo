@@ -103,7 +103,7 @@ scroll service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
-doit --untilgrep="helloworld.*001.*Running" ./pods --once
+doit --untilgrep="helloworld.*Running" ./pods --once
 
 wait curl -sf helloworld.default.${DOMAIN}
 doit curl -sf helloworld.default.${DOMAIN}
@@ -112,13 +112,17 @@ doit ./showresources all
 
 scroll service2.yaml
 doit ./kapply service2.yaml
+doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
+ver1=$(cat out)
 
 comment Wait for the new version to be deployed
-doit --untilgrep="helloworld.*002.*Running" ./pods --once
+doit --untilgrep="${ver1}.*Running" ./pods --once
 echo
 
-wait "curl -sf helloworld.default.${DOMAIN} | grep 002"
+wait "curl -sf helloworld.default.${DOMAIN} | grep ${ver1}"
 doit curl -sf helloworld.default.${DOMAIN}
+doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
+ver2=$(cat out)
 comment Same output as before but with new revision number
 
 comment --pause "Show to pretty slide!"
@@ -155,12 +159,14 @@ scroll service2.yaml
 
 comment "Waiting for new version (look for '$STRING')"
 
-skip="1" doit --untilgrep="^[0-9]*: ${STRING}$" --norepaint --pausetime=8 \
+skip="1" doit --untilgrep="^.*: ${STRING}$" --norepaint --pausetime=8 \
   "curl -sf helloworld.default.${DOMAIN}"
 
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
-doit ./kapply -p ksvc/helloworld service-patch.json
+
+export PREVIOUS="${ver2}"
+doit ./kapply -v -p ksvc/helloworld service-patch.json
 
 doit --noscroll --slowoutput ./load 10 30 http://helloworld.default.${DOMAIN}
 

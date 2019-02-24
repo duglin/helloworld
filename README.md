@@ -2,6 +2,10 @@
 
 ## My First Knative Demo
 
+Note: this version uses Knative v0.4.0. Look at the
+[releases](https://github.com/duglin/helloworld/releases) to find instructions
+for how to run the demo on older versions.
+
 This repo contains the source code, tools and instructions for a demo that
 shows using Knative on the
 [IBM Cloud Kubernetes Service](https://cloud.ibm.com). You can pretty easily
@@ -463,7 +467,7 @@ import (
 func main() {
     text := "Hello World!"
 
-    rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-00001
+    rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-s824d
     if i := strings.LastIndex(rev, "-"); i > 0 {
         rev = rev[i+1:]
     }
@@ -557,10 +561,10 @@ happened:
 $ ./pods
 Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
-helloworld                     helloworld-00001               True 
+helloworld                     helloworld-s824d               True
 
 POD_NAME                                                STATUS           AGE
-helloworld-00001-deployment-78796cb584-jswh6            Running          90s
+helloworld-s824d-deployment-78796cb584-jswh6            Running          90s
 ```
 
 The output of `pods` shows the list of Knative services (at the top)
@@ -569,8 +573,8 @@ followed by the list of active pods.
 When the pod is in the `Running` state, press control-C to stop it.
 
 You should see your `helloworld` Knative service with one revision
-called `helloworld-00001`, and a pod with a really funky name but that
-starts with `helloworld-00001` - meaning it's related to revision 1.
+called `helloworld-s824d`, and a pod with a really funky name but that
+starts with `helloworld-s824d` - meaning it's related to revision 1.
 
 Notice the word "deployment" in there - that's because under the covers
 Knative create a Kubernetes deployment resource and this pod is related
@@ -580,7 +584,7 @@ So, it's running - let's hit it:
 
 ```
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
-00001: Hello World!
+s824d: Hello World!
 ```
 
 You'll need to replace the `kndemo...` portion with the domain name
@@ -592,23 +596,23 @@ resources created as a result of deploying this ONE yaml file:
 ```
 $ showresources
 
-deployment.apps/helloworld-00001-deployment
-endpoint/helloworld-00001-service
+deployment.apps/helloworld-s824d-deployment
+endpoint/helloworld-s824d-service
 endpoint/kubernetes
-pod/helloworld-00001-deployment-78796cb584-jswh6
-pod/helloworld-00001-deployment-78796cb584-sph6w
-replicaset.apps/helloworld-00001-deployment-78796cb584
+pod/helloworld-s824d-deployment-78796cb584-jswh6
+pod/helloworld-s824d-deployment-78796cb584-sph6w
+replicaset.apps/helloworld-s824d-deployment-78796cb584
 service/helloworld
-service/helloworld-00001-service
+service/helloworld-s824d-service
 service/kubernetes
 
 buildtemplate.build.knative.dev/kaniko
 clusteringress.networking.internal.knative.dev/helloworld-rk28q
 configuration.serving.knative.dev/helloworld
-image.caching.internal.knative.dev/helloworld-00001-cache
+image.caching.internal.knative.dev/helloworld-s824d-cache
 image.caching.internal.knative.dev/kaniko-1622814-00000
-podautoscaler.autoscaling.internal.knative.dev/helloworld-00001
-revision.serving.knative.dev/helloworld-00001
+podautoscaler.autoscaling.internal.knative.dev/helloworld-s824d
+revision.serving.knative.dev/helloworld-s824d
 route.serving.knative.dev/helloworld
 service.serving.knative.dev/helloworld
 ```
@@ -695,17 +699,17 @@ If you're not running `./pods` in another window, run it again here:
 $ ./pods
 Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
-helloworld                     helloworld-00002               True 
+helloworld                     helloworld-p8c2v               True
 
 POD_NAME                                                STATUS           AGE
-helloworld-00001-deployment-d9c684bbf-267hc             Running          2m32s
-helloworld-00002-pod-7aeb9b                             Init:2/3         15s
-helloworld-00002-deployment-5769dd7756-8n9kj            Running          22s
+helloworld-s824d-deployment-d9c684bbf-267hc             Running          2m32s
+helloworld-p8c2v-pod-7aeb9b                             Init:2/3         15s
+helloworld-p8c2v-deployment-5769dd7756-8n9kj            Running          22s
 ```
 
 What you'll notice is a "build pod" get created
 that will do the build as defined in the yaml. Then you'll see it vanish and a
-new `helloworld-00002-deployment...` pod appear. Notice it has "2" in there
+new `helloworld-p8c2v-deployment...` pod appear. Notice it has "2" in there
 as the revision number, not "1". This is because any change to the
 `configuration` section of the yaml will cause a new revision to be created.
 
@@ -722,11 +726,11 @@ So, let's hit it:
 
 ```
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
-00002: Hello World!
+p8c2v: Hello World!
 ```
 
 Nothing too exiciting here, it worked as expected - just notice it's showing
-`00002` as the revision number, not `00001`.
+`p8c2v` as the revision number, not `s824d`.
 
 #### Hooking it up to Github events
 
@@ -894,22 +898,22 @@ In the `./pods` window you should see something like this:
 ```
 Cluster: kndemo
 K_SVC_NAME                     LATESTREADY                    READY
-githubsource-b5skr             githubsource-b5skr-00001       True 
-helloworld                     helloworld-00002               Unknown
-rebuild                        rebuild-00001                  True 
+githubsource-b5skr             githubsource-b5skr-s824d       True
+helloworld                     helloworld-p8c2v               Unknown
+rebuild                        rebuild-s824d                  True
 
 POD_NAME                                                STATUS           AGE
-githubsource-b5skr-00001-deployment-bfdc64c6f-x7dz8     Running          49s
-helloworld-00002-deployment-5769dd7756-q5d7j            Running          37s
-helloworld-00003-pod-6b8b9b                             Init:2/3         25s
-rebuild-00001-deployment-849cb99967-rnwsf               Running          43s
+githubsource-b5skr-s824d-deployment-bfdc64c6f-x7dz8     Running          49s
+helloworld-p8c2v-deployment-5769dd7756-q5d7j            Running          37s
+helloworld-7vh75-pod-6b8b9b                             Init:2/3         25s
+rebuild-s824d-deployment-849cb99967-rnwsf               Running          43s
 ```
 
 Since the `github` and `rebuild` actions are both Knative service you'll
 see them listed in the top section, and when
 the Github event came into our cluster instances of those services were spun
 up, if not
-already running. Notice the `helloworld-00003-pod-6b8b9b` pod. That's the
+already running. Notice the `helloworld-7vh75-pod-6b8b9b` pod. That's the
 build pod for revision 3 (the next version) of our app.
 
 Eventually, that pod will go away and you should see a new "deployment"
@@ -918,11 +922,13 @@ hit:
 
 ```
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
-00003: Now is the time for all good...
+7vh75: Now is the time for all good...
 ```
 
-There ya go! Notice it say "0003" not "0002", and shows our new text instead
+There ya go! Notice it say "7vh75" not "p8c2v", and shows our new text instead
 of `Hello World!`.
+
+Save the revision name you see, you'll need that in the next section.
 
 
 ### A/B Testing
@@ -941,7 +947,7 @@ file we're going to use to do that:
   "path":"/spec",
   "value": {
     "release": {
-      "revisions": [ "helloworld-00003", "helloworld-00002" ],
+      "revisions": [ "@latest", "helloworld-${PREVIOUS}" ],
       "rolloutPercent": 10,
       "configuration": {
         "revisionTemplate": {
@@ -961,16 +967,17 @@ file we're going to use to do that:
 This will replace the service's `spec` section, which has `runLatest` property,
 with a `release` instead. This type of Service configuration sets up a
 rolling upgrade mechanism. Notice in the `revisions` property we list
-two revision names, 00003 and 00002. The first one in the list indicates
-what the "currently running" revision should be - which in our case is 00003.
+two revision names, `@latest` and `${PREVIOUS}`. The first one in the list
+indicates what the "currently running" revision should be.
 The second item in the list is the revision we want to "rollout" to, which
-in this case is the previous version, 00002. The `revisionTemplate` section
-remains unchanged.
+in this case is the previous version, p8c2v. If you're doing this manually
+you'll need to replace it with the value you were told to save from above.
+The `revisionTemplate` section remains unchanged.
 
 Also notice that the `rolloutPercent` tells the system to only send 10%
-of the incoming traffic to the "candidate" revision, meaning 00002. The idea
+of the incoming traffic to the "candidate" revision, meaning p8c2v. The idea
 is that we'd slowly increase that over time and eventually replace the
-`revisions` array with just one value - the "candidate" value, or 00002 in
+`revisions` array with just one value - the "candidate" value, or p8c2v in
 our scenario.
 
 So, let's apply the patch:
@@ -990,25 +997,25 @@ $ ./load 10 30 http://helloworld.default.kndemo.us-south.containers.appdomain.cl
 Replace `kndemo...` with your cluster's domain name. What you should see
 is something like this:
 ```
-01: 00003: Now is the time for all good...                                      
-02: 00003: Now is the time for all good...                                      
-03: 00003: Now is the time for all good...                                      
-04: 00003: Now is the time for all good...                                      
-05: 00002: Hello World!                                                         
-06: 00003: Now is the time for all good...                                      
-07: 00003: Now is the time for all good...                                      
-08: 00003: Now is the time for all good...                                      
-09: 00003: Now is the time for all good...                                      
-10: 00003: Now is the time for all good...  
+01: 7vh75: Now is the time for all good...                                     
+02: 7vh75: Now is the time for all good...                                     
+03: 7vh75: Now is the time for all good...                                     
+04: 7vh75: Now is the time for all good...                                     
+05: p8c2v: Hello World!                                                        
+06: 7vh75: Now is the time for all good...                                     
+07: 7vh75: Now is the time for all good...                                     
+08: 7vh75: Now is the time for all good...                                     
+09: 7vh75: Now is the time for all good...                                     
+10: 7vh75: Now is the time for all good... 
 ```
 
 One interesting thing to mention... if you were paying attention, during
-the update of the service you should have seen a `00004` version of the
+the update of the service you should have seen another version of the
 service being built and deployed in the `pods` window. I believe this happened
 because Knative detected a change in the service definition and any change
 results in a new version being built. Normally this might be ok, however, in
 this case the change actually wasn't a change. The configuration of the
-service matches the defintion of the `00002` version that we're trying to
+service matches the defintion of the `p8c2v` version that we're trying to
 migrate to. It seems to me that this new version should not have been built
 at all. No real harm was done in this case because even though it was deployed,
 it also vanished due to no traffic being routed to it. However, this means

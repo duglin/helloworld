@@ -32,6 +32,7 @@ TMPFILE=/tmp/pods-tmp${RANDOM}
 
 function finish {
   rm -f "${TMPFILE}"
+  rm -f "${TMPFILE}.out"
 }
 trap finish EXIT
 
@@ -45,75 +46,73 @@ fi
 while true ; do
     printf "Cluster: ${CLUSTER}\033[K\\n" > $TMPFILE
 
-    kubectl get ksvc < /dev/null 2>&1 | while read name domain latestc latestr ready reason
+    kubectl get ksvc --all-namespaces --no-headers < /dev/null > $TMPFILE.out 2>&1
+    IKS=$'\r\n' eval 'NSs=($(grep -v NAME $TMPFILE.out | sed "s/ .*//" | sort -u))'
+
+    printf "%-30s %-30s %-5s\033[K\\n" NS/NAME LATESTREADY READY  >> $TMPFILE
+    cat $TMPFILE.out | while read ns name domain latestc latestr ready reason
     do
-        if [[ "${name}" == "No" ]]; then
-            name="NAME"
-            latestr="LATESTREADY"
-            ready="READY"
+        [[ "${ns}" == "No" ]] && continue
+
+        # Shorten 'default' namespaced names
+        if [[ "${ns}" == "default" ]]; then
+          ns=""
+        else
+          ns="${ns}/"
         fi
 
-        if [[ "${name}" == "NAME" ]]; then
-            name="K_SVC_NAME"
-        fi
-
-        printf "%-30s %-30s %-5s\033[K\\n" "${name}" "${latestr}" "${ready}" >> $TMPFILE
+        printf "%-30s %-30s %-5s\033[K\\n" "${ns}${name}" "${latestr}" "${ready}" >> $TMPFILE
     done
 
-    printf "\033[K\\n" >> $TMPFILE
+    printf "\033[K\\n" >> $TMPFILE    # Blank line
     read -s -n 1 -t 0.01 ch || true
     if ! [[ "$ch" == "" ]]; then
         break
     fi
 
-    kubectl get pods < /dev/null 2>&1 | while read name ready status restarts age
+    printf "%-55s %-15s  %s\033[K\\n" POD_NAME STATUS AGE >> $TMPFILE
+    for ns in "${NSs[@]}"
     do
-        if [[ "${name}" == "No" ]]; then
-            name="NAME"
-            status="STATUS"
-            AGE="AGE"
-        fi
+        kubectl get pods -n $ns --no-headers < /dev/null 2>&1 | while read name ready status restarts age
+        do
+            [[ "${name}" == "No" ]] && continue
+            [[ "${status}" == "Completed" ]] && continue
+            [[ "${status}" == "Terminating" ]] && continue
 
-        if [[ "${name}" == "NAME" ]]; then
-            name="POD_NAME"
-        fi
-
-        [[ "${status}" == "Completed" ]] && continue
-        [[ "${status}" == "Terminating" ]] && continue
-
-        printf "%-55s %-15s  %s\033[K\\n" "${name}" "${status}" "${age}" >> $TMPFILE
+            printf "%-55s %-15s  %s\033[K\\n" "${name}" "${status}" "${age}" >> $TMPFILE
+        done
     done
     ! [[ "${PIPESTATUS[0]}" == "0" ]] && exit 1
 
-    # printf "\033[K\\n" >> $TMPFILE
+    # printf "\033[K\\n" >> $TMPFILE   # Blank line
 
     if [[ "$oldSize" != "0" ]]; then
-	    printf "\033[%dA" "${oldSize}"
+        printf "\033[%dA" "${oldSize}"
     fi
     newSize=$(wc -l "${TMPFILE}" | sed "s/ .*//")
-	while (( oldSize > newSize )); do
+    while (( oldSize > newSize )); do
         printf "\033[K\\n" >> $TMPFILE
-		let oldSize=oldSize-1
-	done
+        let oldSize=oldSize-1
+    done
     cat $TMPFILE
     oldSize=$(wc -l "${TMPFILE}" | sed "s/ .*//")
-    # rm -f $TMPFILE
+    # rm -f $TMPFILE $TMPFILE.out
 
     if [[ -n "${once}" ]]; then
        break
     fi
 
-	if [[ -n "${grepcmd}" ]]; then
+    if [[ -n "${grepcmd}" ]]; then
         set +e
-	    grep "${grepcmd}" $TMPFILE > /dev/null 2>&1 && break
+        grep "${grepcmd}" $TMPFILE > /dev/null 2>&1 && break
         set -e
-	fi
-	
-	if [[ -n "$untilcmd" ]]; then
-		set +e
-		bash -c " ${untilcmd} " >/dev/null 2>&1 && break
-		set -e
-	fi
+    fi
+
+    if [[ -n "$untilcmd" ]]; then
+        set +e
+        bash -c " ${untilcmd} " >/dev/null 2>&1 && break
+        set -e
+    fi
 
     read -s -n 1 -t 1 ch || true
     if ! [[ "$ch" == "" ]]; then

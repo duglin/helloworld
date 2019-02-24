@@ -5,6 +5,7 @@ set -e
 TMPFILE=kapply-tmp${RANDOM}
 CMD="apply"
 OBJECT=""
+VERBOSE=""
 
 while [[ "$1" == "-"* ]]; do
     case "$1" in
@@ -12,6 +13,7 @@ while [[ "$1" == "-"* ]]; do
     -p)  CMD="path"
          OBJECT="$2"
          shift ;;
+	-v)  VERBOSE="true" ;;
     *) echo "Uknown option '$1'" ; exit 1 ;;
     esac
     shift
@@ -49,8 +51,10 @@ while [[ -n "${1}" ]]; do
     done
 
     # echo "> ${file}"
+	( [[ -n "$VERBOSE" ]] || [[ -n "$TESTRUN" ]] ) && cat "${TMPFILE}"
     if [[ -n "$TESTRUN" ]]; then
-        cat "${TMPFILE}"
+        # cat "${TMPFILE}"
+		true
     elif [[ "$CMD" == "apply" ]]; then
         kubectl apply -f "${TMPFILE}"
     else
