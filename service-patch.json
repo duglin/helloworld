@@ -2,7 +2,7 @@
   "path":"/spec",
   "value": {
     "release": {
-      "revisions": [ "@latest", "helloworld-${PREVIOUS}" ],
+      "revisions": [ "helloworld-${LATEST}", "helloworld-${PREVIOUS}" ],
       "rolloutPercent": 10,
       "configuration": {
         "revisionTemplate": {

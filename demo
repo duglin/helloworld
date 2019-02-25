@@ -165,6 +165,10 @@ skip="1" doit --untilgrep="^.*: ${STRING}$" --norepaint --pausetime=8 \
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
 
+doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
+ver3=$(cat out)
+
+export LATEST="${ver3}"
 export PREVIOUS="${ver2}"
 doit ./kapply -v -p ksvc/helloworld service-patch.json
 
