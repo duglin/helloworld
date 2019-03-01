@@ -13,10 +13,10 @@ func main() {
 
 	rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-7vh75
 	if i := strings.LastIndex(rev, "-"); i > 0 {
-		rev = rev[i+1:]
+		rev = rev[i+1:] + ": "
 	}
 
-	msg := fmt.Sprintf("%s: %s\n", rev, text)
+	msg := fmt.Sprintf("%s%s\n", rev, text)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Got request\n")
