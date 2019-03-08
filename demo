@@ -103,7 +103,7 @@ scroll service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
-doit --untilgrep="helloworld.*Running" ./pods --once
+doit ./pods --grep "helloworld.*Running"
 
 wait curl -sf helloworld.default.${DOMAIN}
 doit curl -sf helloworld.default.${DOMAIN}
@@ -116,7 +116,7 @@ doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | se
 ver1=$(cat out)
 
 comment Wait for the new version to be deployed
-doit --untilgrep="${ver1}.*Running" ./pods --once
+doit ./pods --grep "${ver1}.*Running"
 echo
 
 wait "curl -sf helloworld.default.${DOMAIN} | grep ${ver1}"

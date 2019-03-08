@@ -58,7 +58,7 @@ func main() {
 		}
 
 		body, _ = json.MarshalIndent(msg, "", "  ")
-		fmt.Printf("JSON:\n%s\n\n", body)
+		fmt.Printf("HEADERS:\n%v\nBODY:\n%s\n\n", r.Header, body)
 
 		if msg["action"] != nil {
 			fmt.Printf("Got issue event\n")
