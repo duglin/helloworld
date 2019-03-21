@@ -13,7 +13,7 @@ while [[ "$1" == "-"* ]]; do
     -p)  CMD="path"
          OBJECT="$2"
          shift ;;
-	-v)  VERBOSE="true" ;;
+    -v)  VERBOSE="true" ;;
     *) echo "Uknown option '$1'" ; exit 1 ;;
     esac
     shift
@@ -41,8 +41,12 @@ while [[ -n "${1}" ]]; do
                     var=$(cat "${var}")
                 fi
             else
-                # var == end var name
-                var="${!var}"
+                # var == env var name
+                if [[ "${!var}" == "" ]]; then
+                    var=$(cat .env | grep "^${var}=" | sed "s/^[^=]*=//")
+                else
+                    var=${!var}
+                fi
             fi
 
             line="$pre$var$rest"
@@ -51,10 +55,10 @@ while [[ -n "${1}" ]]; do
     done
 
     # echo "> ${file}"
-	( [[ -n "$VERBOSE" ]] || [[ -n "$TESTRUN" ]] ) && cat "${TMPFILE}"
+    ( [[ -n "$VERBOSE" ]] || [[ -n "$TESTRUN" ]] ) && cat "${TMPFILE}"
     if [[ -n "$TESTRUN" ]]; then
         # cat "${TMPFILE}"
-		true
+        true
     elif [[ "$CMD" == "apply" ]]; then
         kubectl apply -f "${TMPFILE}"
     else

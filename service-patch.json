@@ -5,6 +5,31 @@
       "revisions": [ "helloworld-${LATEST}", "helloworld-${PREVIOUS}" ],
       "rolloutPercent": 10,
       "configuration": {
+        "build": {
+          "apiVersion": "build.knative.dev/v1alpha1",
+          "kind": "Build",
+          "metadata": {
+            "annotations" : {
+              "trigger": "15"
+            }
+		  },
+          "spec": {
+            "serviceAccountName": "build-bot",
+            "source": {
+              "git":{
+                "revision": "master",
+                "url": "https://github.com/${GITREPO}",
+              }
+            },
+            "template": {
+              "name": "kaniko",
+              "arguments": {
+                "name": "IMAGE",
+                "value": "index.docker.io/${APP_IMAGE}"
+              }
+            }
+          }
+		},
         "revisionTemplate": {
           "spec": {
             "container": {

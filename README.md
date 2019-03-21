@@ -323,8 +323,8 @@ certain apps with certain labels. While I know it's the Kube-way to use
 label selectors for this, I'm not sure this is necessarily better than
 just allowing people to specify the domain name (or entire URL) in the
 Service definition itself. The level of indirection feels overly complex
-to me. That's not to say that Knative couldn's also support this label
-selector mechanism, but I'd prefe to have it kick-in only if not explicitly
+to me. That's not to say that Knative couldn't also support this label
+selector mechanism, but I'd prefer to have it kick-in only if not explicitly
 set within the Service itself. One of my goals in all of this is to allow
 people to do all of their Service management via the one Knative Service
 resource.
