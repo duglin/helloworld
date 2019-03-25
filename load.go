@@ -59,6 +59,10 @@ func displayOutput() {
 }
 
 func main() {
+	if len(os.Args) != 4 {
+		fmt.Fprintf(os.Stderr, "Usage: load num_of_requests duration URL\n")
+		os.Exit(1)
+	}
 	num, _ := strconv.Atoi(os.Args[1])
 	dur, _ := strconv.Atoi(os.Args[2])
 	url := os.Args[3]
