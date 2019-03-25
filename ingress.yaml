@@ -1,24 +1,3 @@
-# Route all *.containers.appdomain.cloud URLs to our istio gateway
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: iks-knative-ingress
-  namespace: istio-system
-  annotations:
-    # give 30s to services to start from "cold start"
-    ingress.bluemix.net/upstream-fail-timeout: "serviceName=knative-ingressgateway fail-timeout=30"
-    ingress.bluemix.net/upstream-max-fails: "serviceName=knative-ingressgateway max-fails=0"
-    ingress.bluemix.net/client-max-body-size: "size=200m"
-spec:
-  rules:
-    - host: "*.containers.appdomain.cloud"
-      http:
-        paths:
-          - path: /
-            backend:
-              serviceName: istio-ingressgateway
-              servicePort: 80
----
 # Allow for pods to talk to the internet
 apiVersion: v1
 kind: ConfigMap

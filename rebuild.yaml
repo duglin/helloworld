@@ -10,10 +10,5 @@ spec:
           container:
             image: ${REBUILD_IMAGE}
             env:
-            - name: IC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: mysecrets
-                  key: ic_apitoken
-            - name: CLUSTER
-              value: ${CLUSTER}
+            - name: KSVC
+              value: helloworld

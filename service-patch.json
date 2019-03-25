@@ -18,22 +18,22 @@
             "source": {
               "git":{
                 "revision": "master",
-                "url": "https://github.com/${GITREPO}",
+                "url": "https://github.com/${GITREPO}"
               }
             },
             "template": {
               "name": "kaniko",
-              "arguments": {
+              "arguments": [ {
                 "name": "IMAGE",
                 "value": "index.docker.io/${APP_IMAGE}"
-              }
+              }]
             }
           }
 		},
         "revisionTemplate": {
           "spec": {
             "container": {
-              "image": ${APP_IMAGE}
+              "image": "${APP_IMAGE}"
             },
             "containerConcurrency": 1
           }

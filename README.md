@@ -35,7 +35,6 @@ the root of the clone directory that looks like this:
 ```
 git_accesstoken=...
 git_secrettoken=...
-ic_apitoken=...
 username=...
 password=...
 ```
@@ -43,7 +42,6 @@ password=...
 Where:
 - `git_accesstoken` is a [Github Personal Access Token](https://github.com/settings/tokens)
 - `git_secrettoken` is the secret token you want the events from Github to use to verify they're authenticated with your Knative subscription. This can basically be any random string you want.
-- `ic_apitoken` is an IBM Cloud IAM api key - see `ic iam api-key-create`
 - `username` is your Dockerhub username
 - `password` is your Dockerhub password
 
@@ -205,37 +203,11 @@ just need to swap `duglin` for your Github name.
 
 #### Setup our network
 
-Before we can actually use Knative we need to do some additional setup around
-our networking. Actually, that's a lie. Without any changes to Knative you
-could let it default to use `example.com` as the domain name for your services
-but then that means when you access them you'll need to manaually set the
-HTTP `Host` header to be `<app-name>.example.com` instead of something
-meaningful. But, that's no good for a demo, so I needed to fix this so that
-I could use the DNS name that IBM Cloud Kubernetes Service setup for me.
-To do this I have this `ingress.yaml` file:
+Before we go any further, we'll need to modify our Istio configuration so that
+it allows outbound network traffic from our pods. By default Istio blocks all
+outbound traffic.  To do this I have this `ingress.yaml` file:
 
 ```
-# Route all *.containers.appdomain.cloud URLs to our istio gateway
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: iks-knative-ingress
-  namespace: istio-system
-  annotations:
-    # give 30s to services to start from "cold start"
-    ingress.bluemix.net/upstream-fail-timeout: "serviceName=knative-ingressgateway fail-timeout=30"
-    ingress.bluemix.net/upstream-max-fails: "serviceName=knative-ingressgateway max-fails=0"
-    ingress.bluemix.net/client-max-body-size: "size=200m"
-spec:
-  rules:
-    - host: "*.containers.appdomain.cloud"
-      http:
-        paths:
-          - path: /
-            backend:
-              serviceName: istio-ingressgateway
-              servicePort: 80
----
 # Allow for pods to talk to the internet
 apiVersion: v1
 kind: ConfigMap
@@ -249,95 +221,26 @@ data:
   istio.sidecar.includeOutboundIPRanges: 172.30.0.0/16,172.20.0.0/16,10.10.10.0/24
 ```
 
-Install these resouces:
+Install this resouce:
 
 ```
 $ ./kapply ingress.yaml
-ingress.extensions/iks-knative-ingress created
 configmap/config-network created
 ```
 
-(We'll talk more about the `kapply` command later.)
-
-The first resource in the file defines a new Ingress rule that maps all
-HTTP traffic coming into the environment that has an HTTP `HOST` header
-value that matches `*.containers.appdomain.cloud` to our `istio-gateway`
-Kubernetes Service. Two interesting things about this:
-- Unless we do something special, all of our apps we deploy will automatically
-  get a URL (route) of the form
-  `<app-name>.<namespace>.containers.appdomain.cloud`. This Istio rule will
-  (due to the wildcard) will allow us to deploy any application and not have
-  to set up a special rule for each application to get it to route its
-  traffic to Istio.
-- The Istio gateway we're using here is what will manage all of the advanced
-  networking that we'll leverage, such as load-balancing and traffic routing
-  between multiple versions of our app.
-
-The second resource in the yaml file will modify the Knative configuration
-of Istio such that the only outbound traffic it blocks are to those IP
-ranges listed on the `istio.sidecar.includeOutboundIPRanges` field. By default
-Istio will block all outbound traffic - which, could take a while to figure
-out if you're used to using vanilla Kubernetes which lets all traffic through
-by default.
-
-We're almost done with our network setup, yes this is way too much work!
-Last, we need to modify a Knative ConfigMap such that the default URL
-assigned to our apps isn't `example.com`, which is the default that Knative
-uses.
-
-Before we can do that, we need to know your cluster's domain name. You
-can get this info by running:
-
-```
-$ ibmcloud ks cluster-get -s CLUSTER_NAME
-Name:                   kndemo
-State:                  normal
-Created:                2019-02-04T21:36:18+0000
-Location:               dal13
-Master URL:             https://c2.us-south.containers.cloud.ibm.com:24730
-Master Location:        Dallas
-Master Status:          Ready (1 day ago)
-Ingress Subdomain:      kndemo.us-south.containers.appdomain.cloud
-Ingress Secret:         kndemo
-Workers:                4
-Worker Zones:           dal13
-Version:                1.12.4_1534* (1.12.5_1537 latest)
-Owner:                  me@us.ibm.com
-Resource Group Name:    default
-```
-
-Notice the `Ingress Subdomain:` line - that's your domain name.
-
-Now, edit the ConfigMap:
-
-```
-$ kubectl edit cm/config-domain -n knative-serving
-```
-
-In there, change any occurrence of `example.com` with your cluster's
-domain name. This ConfigMap allows for you to define which Knative apps
-get assigned which domain name. While in this example we just have `""`
-as the value of our one config map entry, which means it's the default,
-you could technically put a selectiion criteria in there to look for
-certain apps with certain labels. While I know it's the Kube-way to use
-label selectors for this, I'm not sure this is necessarily better than
-just allowing people to specify the domain name (or entire URL) in the
-Service definition itself. The level of indirection feels overly complex
-to me. That's not to say that Knative couldn't also support this label
-selector mechanism, but I'd prefer to have it kick-in only if not explicitly
-set within the Service itself. One of my goals in all of this is to allow
-people to do all of their Service management via the one Knative Service
-resource.
-
-We're finally done with the administrivial networking stuff.
+We'll talk more about the `kapply` command later.
 
 #### Secrets
 
 Before we get to the real point of this, which is deploying an application,
 I needed to create a Kuberneres Secret that holds all of the private
 keys/tokens/usernames/etc... that will be used during the demo.
+I also needed to create some new RBAC rules so that our "rebuild" service,
+which is running under the "default" Service Account,
+has the proper permissions to access and edit the Knative Service to force it
+to rebuild - which I'll talk more about later.
 
-For that I have the `secrets.yaml` file:
+For all of these things I have the `secrets.yaml` file:
 
 ```
 apiVersion: v1
@@ -350,7 +253,6 @@ type: kubernetes.io/basic-auth
 stringData:
   git_accesstoken: ${.secrets.git_accesstoken}
   git_secrettoken: ${.secrets.git_secrettoken}
-  ic_apitoken: ${.secrets.ic_apitoken}
   username: ${.secrets.username}
   password: ${.secrets.password}
 ---
@@ -360,6 +262,37 @@ metadata:
   name: build-bot
 secrets:
 - name: mysecrets
+
+
+---
+# Give our "default" ServiceAccount permission to touch Knative Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rebuild
+rules:
+- apiGroups:
+  - serving.knative.dev
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rebuild-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: rebuild
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
 ```
 
 You'll notice some environment variable looking values in there. Obviously,
@@ -374,8 +307,10 @@ The you can create the secret via:
 
 ```
 $ ./kapply secrets.yaml
-secret/mysecrets configured
-serviceaccount/build-bot configured
+secret/mysecrets created
+serviceaccount/build-bot created
+clusterrole.rbac.authorization.k8s.io/rebuild created
+clusterrolebinding.rbac.authorization.k8s.io/rebuild-binding created
 ```
 
 #### Install the Kaniko build template
@@ -580,22 +515,29 @@ followed by the list of active pods.
 When the pod is in the `Running` state, press control-C to stop it.
 
 You should see your `helloworld` Knative service with one revision
-called `helloworld-s824d`, and a pod with a really funky name but that
-starts with `helloworld-s824d` - meaning it's related to revision 1.
+called something like `helloworld-s824d`, and a pod with a really funky name
+but that starts with that revision name.
 
 Notice the word "deployment" in there - that's because under the covers
 Knative create a Kubernetes deployment resource and this pod is related
 to that deployment.
 
-So, it's running - let's hit it:
+So, it's running - let's invoke it. Before we do, we first need to know
+the full URL of the service, to find that do this:
+
+```
+$ kubectl get ksvc
+NAME         DOMAIN                                                          LATESTCREATED      LATESTREADY        READY   REASON
+helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True   
+```
+
+You'll notice that once the Service is ready the "DOMAIN" column will show
+the full URL of the Service and that's what we'll use to call it.
 
 ```
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 s824d: Hello World!
 ```
-
-You'll need to replace the `kndemo...` portion with the domain name
-of your cluster that you determine above.
 
 If you run the `./showresources` script you'll see all of the various
 resources created as a result of deploying this ONE yaml file:
@@ -781,33 +723,26 @@ spec:
           container:
             image: ${REBUILD_IMAGE}
             env:
-            - name: IC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: mysecrets
-                  key: ic_apitoken
-            - name: CLUSTER
-              value: ${CLUSTER}
+            - name: KSVC
+              value: helloworld
 ```
 
 This should look very much like our `helloworld` service definition.
 For the most part it is just defining the container image to run
-`${REBUILD_IMAGE}`, and defining some environment variables. Those are there
-so that the process can talk to IBM Cloud and know which cluster we're using.
-I won't go into the details of the code, you can look at the
-[`rebuild.sh`](https://github.com/duglin/helloworld/blob/master/rebuild.sh)
-script if you really want to see the details.
+`${REBUILD_IMAGE}`, and passing in the name of the Knative Service to
+rebuild.
 
 One thing I will mention here though, when I first wrote the rebuild service
 I had a very single-purpose workflow in mind. By that I mean, I knew the
 rebuild service would only be called when we got an event, and it only had
-to call the `rebuild.sh` file to do its job. So I wrote the code in
+to edit the Knative Service's build definition to do its job.  So I wrote the
+code in
 [`rebuild.go`](https://github.com/duglin/helloworld/blob/master/rebuild.go)
-to do **just** that - it would do nothing but call `rebuild.sh`. I completely
+to do **just** that - it would do nothing but call `kubectl`. I completely
 forgot that this is a Knative Service! Meaning, it is meant to be an HTTP
 server waiting for requests - it is not a single-run entity. And, because I
-didn't have an HTTP server as part of its logic, after it invoked the
-`rebuild.sh` script, it would exit. But then, of course, Knative/Kube would
+didn't have an HTTP server as part of its logic, after it invoked
+`kubectl`, it would exit. But then, of course, Knative/Kube would
 interpret this as a "crash" and restart it - resulting in an endless loop of
 rebuilds! I'm mentioning this because as you start to chain Services
 (or Functions) together, it'll be easy to think of them as simple RPC
@@ -1001,8 +936,7 @@ built the `load` tool (`make load`):
 $ ./load 10 30 http://helloworld.default.kndemo.us-south.containers.appdomain.cloud
 ```
 
-Replace `kndemo...` with your cluster's domain name. What you should see
-is something like this:
+What you should see is something like this:
 ```
 01: 7vh75: Now is the time for all good...                                     
 02: 7vh75: Now is the time for all good...                                     

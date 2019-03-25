@@ -7,70 +7,116 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
 
-func Run(cmd string, args ...string) string {
+var echo = (os.Getenv("ECHO") != "")
+
+func Print(w http.ResponseWriter, format string, args ...interface{}) {
+	re := regexp.MustCompile(`token=[^ ]* `)
+	str := re.ReplaceAllString(fmt.Sprintf(format, args...), "token=TOKEN  ")
+
+	fmt.Printf(str)
+	if echo {
+		fmt.Fprintf(w, str)
+	}
+}
+
+func Run(w http.ResponseWriter, cmd string, args ...string) (string, error) {
 	out, err := exec.Command(cmd, args...).CombinedOutput()
 	if err != nil {
-		fmt.Fprint(os.Stderr, "Failed running: %s %s\n%s\n",
+		Print(w, "Failed running: %s %s\n%s\n",
 			cmd, strings.Join(args, " "), err)
-		os.Exit(1)
 	}
-	return string(out)
+	return string(out), err
 }
 
 func main() {
-	ready := false
-	apikey := os.Getenv("IC_KEY")
-	cluster := os.Getenv("CLUSTER")
-
-	fmt.Printf("Cluster: %s\nAPIKey: %s\n", cluster, apikey[:3])
-
-	// Put this in the background so we don't slow down the
-	// creation of the Knative rebuild service
-	go func() {
-		Run("bx", "login", "--apikey", apikey, "-r", "us-south")
-		Run("bx", "config", "--check-version", "false")
-		export := Run("bx", "ks", "cluster-config", "-s", "--export", cluster)
-		export = strings.SplitN(export, "=", 2)[1]
-		export = strings.TrimSpace(export)
-
-		fmt.Printf("export KUBCONFIG=%s\n", export)
-		os.Setenv("KUBECONFIG", export)
-		ready = true
-	}()
-
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Wait for our IBM Cloud setup to finish
-		for !ready {
-			time.Sleep(200 * time.Millisecond)
-		}
-
+		var err error
+		var out string
 		msg := map[string]interface{}{}
 
 		body, _ := ioutil.ReadAll(r.Body)
-		err := json.Unmarshal(body, &msg)
-		if err != nil {
-			fmt.Printf("Error parsing: %s\n\n%s\n", err, string(body))
+		if err = json.Unmarshal(body, &msg); err != nil {
+			Print(w, "Error parsing: %s\n\n%s\n", err, string(body))
 			return
 		}
 
 		body, _ = json.MarshalIndent(msg, "", "  ")
-		fmt.Printf("HEADERS:\n%v\nBODY:\n%s\n\n", r.Header, body)
+		Print(w, "HEADERS:\n%v\nBODY:\n%s\n\n", r.Header, body)
 
 		if msg["action"] != nil {
-			fmt.Printf("Got issue event\n")
+			Print(w, "Got issue event\n")
 		} else if msg["hook"] != nil {
-			fmt.Printf("Got hook event\n")
+			Print(w, "Got hook event\n")
 		} else if msg["pusher"] != nil {
-			fmt.Printf("Got push event\n")
-			out, err := exec.Command("/rebuild.sh").CombinedOutput()
-			fmt.Printf("%s\n%s\n", out, err)
-			fmt.Fprintf(w, "%s\n%s\n", out, err)
+			Print(w, "Got push event\n")
+
+			token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+			if err != nil {
+				Print(w, "Can't load API token:%s\n", err)
+				return
+			}
+
+			// Which Knative Service are we rebuilding?
+			ksvc := os.Getenv("KSVC")
+			if ksvc == "" {
+				ksvc = "helloworld"
+			}
+			Print(w, "ksvc: %s\n", ksvc)
+
+			// Get the YAML of the KnService so we can edit it
+			args := []string{"kubectl", "--token=" + string(token),
+				"get", "ksvc/" + ksvc, "-oyaml"}
+			if out, err = Run(w, args[0], args[1:]...); err != nil {
+				Print(w, "Error getting ksvc %q: %s\n%s\n", ksvc, out, err)
+				return
+			}
+
+			// Modify the:  trigger: ...   line
+			lines := strings.Split(out, "\n")
+			foundIt := false
+			for i, line := range lines {
+				if strings.Contains(line, "   trigger:") {
+					j := strings.Index(line, ":")
+					lines[i] = line[:j+2] + `"` + time.Now().String() + `"`
+					foundIt = true
+					break
+				}
+			}
+
+			if !foundIt {
+				Print(w, "Can't find trigger:\n%s\n", string(out))
+				return
+			}
+
+			// Save edited files to disk
+			tmpFile, _ := ioutil.TempFile("", "")
+			defer os.Remove(tmpFile.Name())
+			buf := []byte(strings.Join(lines, "\n"))
+			if err = ioutil.WriteFile(tmpFile.Name(), buf, 0700); err != nil {
+				Print(w, "Error saving yaml: %s\n", err)
+				return
+			}
+
+			// Apple the edits
+			Print(w, "  Applying edits...\n")
+			args = []string{"kubectl", "--token=" + string(token),
+				"apply", "-f", tmpFile.Name()}
+			if _, err = Run(w, args[0], args[1:]...); err != nil {
+				Print(w, "%s\n%s\n%s\n", strings.Join(args, " "), out, err)
+				return
+			}
+
+			Print(w, "  Done\n")
 		} else {
-			fmt.Printf("Unknown event\n")
+			Print(w, "Unknown event: %s\n", string(body))
+			if !echo {
+				fmt.Fprintf(w, "Unknown event: %s\n", string(body))
+			}
 		}
 	})
 

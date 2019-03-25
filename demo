@@ -23,10 +23,10 @@ function cleanDemo {
     set +e
     kubectl delete \
         -f service1.yaml \
-        -f service2.yaml \
         -f github.yaml \
         -f rebuild.yaml \
-        -f secrets.yaml
+        -f secrets.yaml \
+		-f ingress.yaml
 
     kubectl delete \
         clusterchannelprovisioner.eventing.knative.dev/in-memory-channel
@@ -60,25 +60,14 @@ done
 CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
 
-comment Determining cluster info for ${CLUSTER}...
-skip=1 doit ic ks cluster-get -s ${CLUSTER}
-DOMAIN=$(grep "Ingress Subdomain" out | sed "s/Ingress Subdomain:\s*//")
-DOMAIN=$(echo "${DOMAIN}" | sed "s/ //g")
-
-comment Domain: ${DOMAIN}
-
 comment Set our KUBECONF env var
 ic config --check-version false
 doit ic ks cluster-config -s --export ${CLUSTER}
 doit $(cat out)
 $(cat out)
 
-comment Setup our DNS routing and enable external internet access from our pods
+comment Enable external internet access from our pods
 doit ./kapply ingress.yaml
-
-comment Update the default Knative domain name used to match our cluster
-patch="[{\"op\":\"replace\",\"path\":\"/data\",\"value\":{\"${DOMAIN}\":\"\"}}]"
-doit kubectl patch cm/config-domain -n knative-serving --type json -p=\'$patch\'
 
 comment Create the secrets used for accessing DockerHub and Github
 doit ./kapply secrets.yaml
@@ -105,8 +94,11 @@ doit ./kapply service1.yaml
 comment Wait for the app to be deployed
 doit --noscroll ./pods --grep "helloworld.*Running"
 
-wait curl -sf helloworld.default.${DOMAIN}
-doit curl -sf helloworld.default.${DOMAIN}
+doit kubectl get ksvc
+APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
+
+wait curl -sf ${APPURL}
+doit curl -sf ${APPURL}
 
 doit ./showresources all
 
@@ -119,8 +111,8 @@ comment Wait for the new version to be deployed
 doit --noscroll ./pods --grep "${ver1}.*Running"
 echo
 
-wait "curl -sf helloworld.default.${DOMAIN} | grep ${ver1}"
-doit curl -sf helloworld.default.${DOMAIN}
+wait "curl -sf ${APPURL} | grep ${ver1}"
+doit curl -sf ${APPURL}
 doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
 ver2=$(cat out)
 comment Same output as before but with new revision number
@@ -160,7 +152,7 @@ scroll service2.yaml
 comment "Waiting for new version (look for '$STRING')"
 
 skip="1" doit --untilgrep="^.*: ${STRING}$" --norepaint --pausetime=8 \
-  "curl -sf helloworld.default.${DOMAIN}"
+  "curl -sf ${APPURL}"
 
 comment "Now let's do A/B testing... 10% of requests go to version 1"
 scroll service-patch.json
@@ -172,6 +164,6 @@ export LATEST="${ver3}"
 export PREVIOUS="${ver2}"
 doit ./kapply -v -p ksvc/helloworld service-patch.json
 
-doit --noscroll --slowoutput ./load 10 30 http://helloworld.default.${DOMAIN}
+doit --noscroll --slowoutput ./load 10 30 http://${APPURL}
 
 doit ./showresources all
