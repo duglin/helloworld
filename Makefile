@@ -6,6 +6,9 @@ REBUILD_IMAGE ?= duglin/rebuild
 load: load.go
 	go build -o load load.go
 
+clean:
+	./demo --clean
+
 .rebuild: rebuild.go Dockerfile.rebuild
 	go build -o /dev/null rebuild.go     # Fail fast for compilation errors
 	docker build -f Dockerfile.rebuild -t $(REBUILD_IMAGE) .
