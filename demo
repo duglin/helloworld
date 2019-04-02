@@ -61,7 +61,9 @@ CLUSTER=${1:-${KUBECONFIG##*-}}
 export CLUSTER=${CLUSTER%.yml}
 
 comment Set our KUBECONF env var
-ic config --check-version false
+if [[ ! -n "${useSaved}" ]]; then
+    ic config --check-version false
+fi
 doit ic ks cluster-config -s --export ${CLUSTER}
 doit $(cat out)
 $(cat out)
@@ -92,7 +94,9 @@ scroll service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
-doit --noscroll ./pods --grep "helloworld.*Running"
+doit --noscroll --slowoutput ./pods --grep "helloworld.*Running"
+
+wait kubectl get ksvc \| grep helloworld.default
 
 doit kubectl get ksvc
 APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
@@ -108,7 +112,7 @@ doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | se
 ver1=$(cat out)
 
 comment Wait for the new version to be deployed
-doit --noscroll ./pods --grep "${ver1}.*Running"
+doit --noscroll --slowoutput ./pods --grep "${ver1}.*Running"
 echo
 
 wait "curl -sf ${APPURL} | grep ${ver1}"
