@@ -27,6 +27,20 @@ though.
 
 So, with that, let's get started...
 
+## Canned demo!
+
+If you just want to see what a successful demo looks like without actually
+doing anything, like even installing Kubernetes or Knative, just run this:
+
+```
+USESAVED=1 ./demo
+```
+
+And press the spacebar to walk through each command. The output should look
+basically the same as a live-run (even with delays at the right times) to make
+it look-n-feel like it's live!  Great for situations where your network
+isn't reliable, or the demo Gods are mad at you.
+
 ## Prep
 
 After you fork and clone this repo you'll need to create a `.secrets` file in
