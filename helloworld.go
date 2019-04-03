@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	text := "Hello World!"
+	text := "Dogs are great!"
 
 	rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-7vh75
 	if i := strings.LastIndex(rev, "-"); i > 0 {
