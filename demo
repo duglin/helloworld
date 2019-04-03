@@ -166,7 +166,7 @@ ver3=$(cat out)
 
 export LATEST="${ver3}"
 export PREVIOUS="${ver2}"
-doit ./kapply -v -p ksvc/helloworld service-patch.json
+doit ./kapply -p ksvc/helloworld service-patch.json
 
 doit --noscroll --slowoutput ./load 10 30 http://${APPURL}
 
