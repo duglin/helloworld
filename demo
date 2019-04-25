@@ -90,7 +90,11 @@ clear
 
 scroll helloworld.go
 
-scroll service1.yaml
+comment "We could have used the 'kn' client:"
+doit --noexec kn service create --image duglin/helloworld helloworld
+
+# scroll service1.yaml
+doit ./kapply -t service1.yaml
 doit ./kapply service1.yaml
 
 comment Wait for the app to be deployed
@@ -106,7 +110,8 @@ doit curl -sf ${APPURL}
 
 doit ./showresources all
 
-scroll service2.yaml
+# scroll service2.yaml
+doit ./kapply -t service2.yaml
 doit ./kapply service2.yaml
 doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
 ver1=$(cat out)
@@ -124,14 +129,14 @@ comment Same output as before but with new revision number
 comment --pause "Show to pretty slide!"
 
 comment --pause "Let's deploy the rebuild function that github will call"
-# doit ./kapply -t rebuild.yaml
-scroll rebuild.yaml
+# scroll rebuild.yaml
+doit ./kapply -t rebuild.yaml
 doit ./kapply rebuild.yaml
 wait "kubectl get ksvc | grep rebuild.*True"
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
-# doit ./kapply -t github.yaml
-scroll github.yaml
+# scroll github.yaml
+doit ./kapply -t github.yaml
 doit ./kapply github.yaml
 wait "kubectl get ksvc | grep githubsource.*True"
 
@@ -139,6 +144,7 @@ comment "Now let's edit our app and push it to github"
 if [[ -n "${skip}" || -n "${useSaved}" ]]; then
   STRING="Dogs rule!! Cats drool!!"
   doit sed -i "\"s/text :=.*/text := \\\"${STRING}\\\"/\"" helloworld.go
+  doit git diff helloworld.go
 else
   doit --noexec vi helloworld.go
   vi helloworld.go
