@@ -14,25 +14,25 @@ WORKERS=${WORKERS:-3}
 NAME=${1:-kndemo}
 
 comment "Checking to see if the cluster '%{NAME}' already exists..."
-if ic ks clusters | grep "^${NAME} .* normal " > /dev/null 2>&1 ; then
+if ibmcloud ks clusters | grep "^${NAME} .* normal " > /dev/null 2>&1 ; then
     echo Cluster already exists
 else
     comment Creating ${NAME}
     
     comment Get our VLAN info
-    doit ic ks vlans --zone $ZONE
+    doit ibmcloud ks vlans --zone $ZONE
     PRI_VLAN=$(grep private out | sed "s/ .*//")
     PUB_VLAN=$(grep public out | sed "s/ .*//")
     
     comment Create the cluster
-    doit echo ic ks cluster-create --name ${NAME} --zone ${ZONE} \
+    doit echo ibmcloud ks cluster-create --name ${NAME} --zone ${ZONE} \
         --machine-type ${MACHINE} \
         --workers ${WORKERS} --private-vlan ${PRI_VLAN} \
         --public-vlan ${PUB_VLAN} \
-        --kube-version $(ic ks kube-versions -s | tail -1)
+        --kube-version $(ibmcloud ks kube-versions -s | tail -1)
     
     comment Wait for the cluster to be ready
-    while ! (ic ks clusters | tee tmpout | grep "^${NAME} " | grep " normal "); do
+    while ! (ibmcloud ks clusters | tee tmpout | grep "^${NAME} " | grep " normal "); do
         grep "^${NAME} " tmpout || true
         sleep 30
     done
@@ -40,8 +40,8 @@ else
 fi
 
 comment Get the KUBECONFIG export to use
-ic config --check-version false
-doit ic ks cluster-config -s --export ${NAME}
+ibmcloud config --check-version false
+doit ibmcloud ks cluster-config -s --export ${NAME}
 config=$(cat out)
 $(${config})
 
