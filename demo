@@ -62,9 +62,9 @@ export CLUSTER=${CLUSTER%.yml}
 
 comment Set our KUBECONF env var
 if [[ ! -n "${useSaved}" ]]; then
-    ic config --check-version false
+    ibmcloud config --check-version false
 fi
-doit ic ks cluster-config -s --export ${CLUSTER}
+doit ibmcloud ks cluster-config -s --export ${CLUSTER}
 doit $(cat out)
 $(cat out)
 
@@ -90,9 +90,17 @@ clear
 
 scroll helloworld.go
 
-comment "We could have used the 'kn' client:"
-doit --noexec kn service create --image duglin/helloworld helloworld
+comment Use the easy CLI first
+doit ./kn service create --image duglin/helloworld helloworld
+wait ./kn service get \| grep helloworld.default
+doit ./kn service get
+APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
+doit curl -sf ${APPURL}
+doit curl -sfk https://${APPURL}
+doit ./showresources all
+doit ./kn service delete helloworld
 
+comment Now use normal kubectl command to do more advanced stuff
 # scroll service1.yaml
 doit ./kapply -t service1.yaml
 doit ./kapply service1.yaml
@@ -108,11 +116,10 @@ APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
 wait curl -sf ${APPURL}
 doit curl -sf ${APPURL}
 
-doit ./showresources all
-
 # scroll service2.yaml
 doit ./kapply -t service2.yaml
 doit ./kapply service2.yaml
+sleep 2
 doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
 ver1=$(cat out)
 
@@ -157,7 +164,8 @@ doit git commit -s -m "\"demo - $(date)\""
 doit git push origin master
 
 comment "While we wait, let's look at the 'trigger' in the service"
-scroll service2.yaml
+# scroll service2.yaml
+doit ./kapply -t service2.yaml
 
 comment "Waiting for new version (look for '$STRING')"
 
@@ -165,13 +173,15 @@ skip="1" doit --untilgrep="^.*: ${STRING}$" --norepaint --pausetime=8 \
   "curl -sf ${APPURL}"
 
 comment "Now let's do A/B testing... 10% of requests go to version 1"
-scroll service-patch.json
-
 doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
 ver3=$(cat out)
 
 export LATEST="${ver3}"
 export PREVIOUS="${ver2}"
+
+# scroll service-patch.json
+doit ./kapply -t service-patch.json
+
 doit ./kapply -p ksvc/helloworld service-patch.json
 
 doit --noscroll --slowoutput ./load 10 30 http://${APPURL}

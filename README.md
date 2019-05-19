@@ -33,7 +33,7 @@ If you just want to see what a successful demo looks like without actually
 doing anything, like even installing Kubernetes or Knative, just run this:
 
 ```
-USESAVED=1 ./demo
+$ USESAVED=1 ./demo
 ```
 
 And press the spacebar to walk through each command. The output should look
@@ -70,6 +70,10 @@ The rest of this assumes you:
 
 ## Creating a Kubernetes cluster
 
+Note: in order to run this demo you'll need a cluster with at least 3
+worker nodes in it. As of now this means that you can not use a free-tier
+cluster.
+
 Clearly, we first need a Kubernetes cluster. And, I've automated this
 via the `mkcluster` script in the repo. The script assumes you're using the
 Dallas data center, so if not you'll need to modify it.
@@ -94,7 +98,7 @@ PUB_??           996      public    fcr02a.dal13   true
 ```
 
 Now we can create the cluster. In this case we'll create it with 3 worker
-nodes.  Replace the `PRIV_??` and `PUB_??` with  the values you see from the
+nodes. Replace the `PRIV_??` and `PUB_??` with  the values you see from the
 `ibmcloud ks vlans` command - and replace `dal13` with whatever data center you
 want to use.
 
@@ -192,7 +196,7 @@ to be the name of your Github clone of this repo - typically you should
 just need to swap `duglin` for your Github name.
 
 ```
-./demo [ CLUSTER_NAME ]
+$ ./demo [ CLUSTER_NAME ]
 ```
 `CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
 already points to your IKS cluster.
@@ -205,9 +209,9 @@ When done you can jump the the [Cleaning Up](#cleaning-up) section.
 Before you begin, set these environment variables:
 
 ```
-export APP_IMAGE=duglin/helloworld
-export REBUILD_IMAGE=duglin/rebuild
-export GITREPO=duglin/helloworld
+$ export APP_IMAGE=duglin/helloworld
+$ export REBUILD_IMAGE=duglin/rebuild
+$ export GITREPO=duglin/helloworld
 ```
 
 Set `APP_IMAGE` and `REBUILD_IMAGE` values to use your
@@ -219,7 +223,7 @@ just need to swap `duglin` for your Github name.
 
 Before we go any further, we'll need to modify our Istio configuration so that
 it allows outbound network traffic from our pods. By default Istio blocks all
-outbound traffic.  To do this I have this `ingress.yaml` file:
+outbound traffic. To do this I have this `ingress.yaml` file:
 
 ```
 # Allow for pods to talk to the internet
@@ -374,7 +378,7 @@ Most of what's in there should be obvious:
 - `steps` allows for you to define a list of things to do in order to build
   the image
 
-What's innteresting about this to me is that I'm wondering if this is
+What's interesting about this to me is that I'm wondering if this is
 overly complex and overly simplified at the same time. What I mean by that
 is this... the template provides an image to do all sorts of magic to build
 our image - that part makes sense to me. However, they then suggest that
@@ -413,31 +417,31 @@ to any request with `Hello World!`, here's the source
 package main
 
 import (
-    "fmt"
-    "net/http"
-    "os"
-    "strings"
-    "time"
+	"fmt"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 func main() {
-    text := "Hello World!"
+	text := "Hello World!"
 
-    rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-s824d
-    if i := strings.LastIndex(rev, "-"); i > 0 {
-        rev = rev[i+1:]
-    }
+	rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-7vh75
+	if i := strings.LastIndex(rev, "-"); i > 0 {
+		rev = rev[i+1:] + ": "
+	}
 
-    msg := fmt.Sprintf("%s: %s\n", rev, text)
+	msg := fmt.Sprintf("%s%s\n", rev, text)
 
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        fmt.Printf("Got request\n")
-        time.Sleep(500 * time.Millisecond)
-        fmt.Fprint(w, msg)
-    })
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("Got request\n")
+		time.Sleep(500 * time.Millisecond)
+		fmt.Fprint(w, msg)
+	})
 
-    fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
-    http.ListenAndServe(":8080", nil)
+	fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
+	http.ListenAndServe(":8080", nil)
 }
 ```
 
@@ -460,12 +464,103 @@ You'll need to modify the `Makefile` to point to your DockerHub
 namespace if you want to use `make`.
 
 Now, our first adventure with Knative... let's deploy the application
-as a Knative Service.  First, do not confuse a Knative Service with
+as a Knative Service. First, do not confuse a Knative Service with
 a Kubernetes Service - they're not the same thing. This is an on-going
 point of discussion within the Knative community, so for now we just
 need to live with it.
 
-So, let's first look at our yaml file that defines our Knative Service
+We'll first deploy our Knative Service the really easy way, via the
+Knative `kn` command line tool. The source code is available at
+https://github.com/knative/client but there is no distribution yet, so
+you'll have to build it yourself. For convinience, I've included the
+`kn` exectuable in this directory - but it's only for Linux.
+
+```
+$ ./kn service create helloworld --image $(APP_IMAGE)
+Service 'helloworld' successfully created in namespace 'default'.
+```
+
+As should be clear from the first two arguments this `kn` command is creating
+a service. The next argument is the service name (`helloworld`) and
+then we give it the name/location of the container image to use.
+
+Once that's done, if you want a couple of seconds for the image to download,
+you should then be able to ask for the list of services:
+```
+$ ./kn service get
+NAME         DOMAIN                                                          GENERATION   AGE   CONDITIONS   READY   REASON
+helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   1            46s   3 OK / 3     True
+```
+
+Notice that in there it will show you the full URL of the service that
+you can then curl against:
+
+```
+$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
+c8xg6: Hello World!
+```
+
+With that, you've now successfully deploy a Knative Service and behind
+the scenes it created all of the Kubernetes resources to host it, scale
+it, route traffic to it and even give it a relatively nice URL.
+
+One more thing.... you can also access it via SSL:
+```
+$ curl -sf https://helloworld.default.kndemo.us-south.containers.appdomain.cloud
+c8xg6: Hello World!
+```
+
+So, you also get security too! All with one simple command.
+
+Let's take a quick look at all of the resources that were created
+for us:
+
+```
+$ ./showresources all
+deployment.apps/helloworld-hqfkl-deployment
+endpoint/helloworld-hqfkl-service
+endpoint/kubernetes
+pod/helloworld-hqfkl-deployment-bfc557bb7-llrql
+replicaset.apps/helloworld-hqfkl-deployment-bfc557bb7
+service/helloworld
+service/helloworld-hqfkl-service
+service/kubernetes
+
+buildtemplate.build.knative.dev/kaniko
+clusterchannelprovisioner.eventing.knative.dev/in-memory
+clusteringress.networking.internal.knative.dev/route-8e49eb80-7a0e-11e9-8195-5ee
+95b627dab
+configuration.serving.knative.dev/helloworld
+image.caching.internal.knative.dev/helloworld-hqfkl-cache
+image.caching.internal.knative.dev/kaniko-19737443-00000
+podautoscaler.autoscaling.internal.knative.dev/helloworld-hqfkl
+revision.serving.knative.dev/helloworld-hqfkl
+route.serving.knative.dev/helloworld
+service.serving.knative.dev/helloworld
+```
+
+The first list is the list of native Kube resources, and the second list
+contains the Knative ones. That's a lot of stuff!  And I mean that in a
+good way! One of my goals for Knative is to offer up a more user
+friendly user experience for Kube users. Sure Kube has a ton of features
+but with that flexibility has come complexity. Think about how much learning
+and work is required to setup all of these resources that Knative as done
+for us. I no longer need to understand Ingress, load-balancing, auto-scaling,
+etc. Very nice!
+
+Back to our demo...
+
+The `kn` command line is still under development so for the rest of this
+write-up I'm going to switch back to the normal Kubernetes CLI, `kubectl`.
+And to do that, let's delete this service so we can see how to do it
+with `kubectl`.
+
+```
+$ ./kn service delete helloworld
+Service 'helloworld' successfully deleted in namespace 'default'.
+```
+
+Let's first look at our yaml file that defines our Knative Service
 defined in `service1.yaml`:
 
 ```yaml
@@ -542,7 +637,7 @@ the full URL of the service, to find that do this:
 ```
 $ kubectl get ksvc
 NAME         DOMAIN                                                          LATESTCREATED      LATESTREADY        READY   REASON
-helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True   
+helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True
 ```
 
 You'll notice that once the Service is ready the "DOMAIN" column will show
@@ -552,42 +647,6 @@ the full URL of the Service and that's what we'll use to call it.
 $ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
 s824d: Hello World!
 ```
-
-If you run the `./showresources` script you'll see all of the various
-resources created as a result of deploying this ONE yaml file:
-
-```
-$ showresources
-
-deployment.apps/helloworld-s824d-deployment
-endpoint/helloworld-s824d-service
-endpoint/kubernetes
-pod/helloworld-s824d-deployment-78796cb584-jswh6
-pod/helloworld-s824d-deployment-78796cb584-sph6w
-replicaset.apps/helloworld-s824d-deployment-78796cb584
-service/helloworld
-service/helloworld-s824d-service
-service/kubernetes
-
-buildtemplate.build.knative.dev/kaniko
-clusteringress.networking.internal.knative.dev/helloworld-rk28q
-configuration.serving.knative.dev/helloworld
-image.caching.internal.knative.dev/helloworld-s824d-cache
-image.caching.internal.knative.dev/kaniko-1622814-00000
-podautoscaler.autoscaling.internal.knative.dev/helloworld-s824d
-revision.serving.knative.dev/helloworld-s824d
-route.serving.knative.dev/helloworld
-service.serving.knative.dev/helloworld
-```
-
-The first list is the list of native Kube resources, and the second list
-contains the Knative ones. That's a lot of stuff!  And I mean that in a
-good way! One of my goals for Knative is to offer up a more user
-friendly user experience for Kube users. Sure Kube has a ton of features
-but with that flexibility has come complexity. Think about how much learning
-and work is required to setup all of these resources that Knative as done
-for us. I no longer need to understans Ingress, load-balancing, auto-scaling,
-etc.  Very nice!
 
 That's it. Once we got past the setup (which is a bit much, but I'm hoping
 is just a one-time thing for most people), the deployment of the app itself
@@ -656,7 +715,7 @@ $ ./kapply service2.yaml
 service.serving.knative.dev/helloworld configured
 ```
 
-If you're not running `./pods` in another window, run it again here:
+If you're not running `./pods` in another window, run it again:
 
 ```
 $ ./pods
@@ -749,7 +808,7 @@ rebuild.
 One thing I will mention here though, when I first wrote the rebuild service
 I had a very single-purpose workflow in mind. By that I mean, I knew the
 rebuild service would only be called when we got an event, and it only had
-to edit the Knative Service's build definition to do its job.  So I wrote the
+to edit the Knative Service's build definition to do its job. So I wrote the
 code in
 [`rebuild.go`](https://github.com/duglin/helloworld/blob/master/rebuild.go)
 to do **just** that - it would do nothing but call `kubectl`. I completely
@@ -833,7 +892,7 @@ With that, we should be all set to test it!
 If you modify
 [`helloworld.go`](https://github.com/duglin/helloworld/blob/master/helloworld.go)
 and push it to the `master` branch it should
-initiate the workflow.  In this case I'm going to modify the line in there:
+initiate the workflow. In this case I'm going to modify the line in there:
 ```
 text := "Hello World!"
 ```
@@ -906,10 +965,35 @@ file we're going to use to do that:
       "revisions": [ "@latest", "helloworld-${PREVIOUS}" ],
       "rolloutPercent": 10,
       "configuration": {
+        "build": {
+          "apiVersion": "build.knative.dev/v1alpha1",
+          "kind": "Build",
+          "metadata": {
+            "annotations" : {
+              "trigger": "15"
+            }
+		  },
+          "spec": {
+            "serviceAccountName": "build-bot",
+            "source": {
+              "git":{
+                "revision": "master",
+                "url": "https://github.com/duglin/helloworld"
+              }
+            },
+            "template": {
+              "name": "kaniko",
+              "arguments": [ {
+                "name": "IMAGE",
+                "value": "index.docker.io/duglin/helloworld"
+              }]
+            }
+          }
+		},
         "revisionTemplate": {
           "spec": {
             "container": {
-              "image": ${APP_IMAGE}
+              "image": "duglin/helloworld"
             },
             "containerConcurrency": 1
           }
@@ -952,33 +1036,17 @@ $ ./load 10 30 http://helloworld.default.kndemo.us-south.containers.appdomain.cl
 
 What you should see is something like this:
 ```
-01: 7vh75: Now is the time for all good...                                     
-02: 7vh75: Now is the time for all good...                                     
-03: 7vh75: Now is the time for all good...                                     
-04: 7vh75: Now is the time for all good...                                     
-05: p8c2v: Hello World!                                                        
-06: 7vh75: Now is the time for all good...                                     
-07: 7vh75: Now is the time for all good...                                     
-08: 7vh75: Now is the time for all good...                                     
-09: 7vh75: Now is the time for all good...                                     
-10: 7vh75: Now is the time for all good... 
+01: 7vh75: Now is the time for all good...
+02: 7vh75: Now is the time for all good...
+03: 7vh75: Now is the time for all good...
+04: 7vh75: Now is the time for all good...
+05: p8c2v: Hello World!
+06: 7vh75: Now is the time for all good...
+07: 7vh75: Now is the time for all good...
+08: 7vh75: Now is the time for all good...
+09: 7vh75: Now is the time for all good...
+10: 7vh75: Now is the time for all good...
 ```
-
-One interesting thing to mention... if you were paying attention, during
-the update of the service you should have seen another version of the
-service being built and deployed in the `pods` window. I believe this happened
-because Knative detected a change in the service definition and any change
-results in a new version being built. Normally this might be ok, however, in
-this case the change actually wasn't a change. The configuration of the
-service matches the defintion of the `p8c2v` version that we're trying to
-migrate to. It seems to me that this new version should not have been built
-at all. No real harm was done in this case because even though it was deployed,
-it also vanished due to no traffic being routed to it. However, this means
-that the `:latest` version of this image in DockerHub doesn't match the latest
-revision that I (as a user) would expect it to be. Technically, it's probably
-the same bits in my case, but it's also possible that the build resulted in
-some slight difference that could result in me needing to do a lot of digging
-to notice that a new version was built without my knowledge.
 
 ## Summary
 
