@@ -111,7 +111,7 @@ doit --noscroll --slowoutput ./pods --grep "helloworld.*Running"
 wait kubectl get ksvc \| grep helloworld.default
 
 doit kubectl get ksvc
-APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
+APPURL=$(grep helloworld out | sed "s/^.* http...\(helloworld.def.*cloud\).*$/\1/")
 
 wait curl -sf ${APPURL}
 doit curl -sf ${APPURL}
@@ -133,7 +133,7 @@ doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | se
 ver2=$(cat out)
 comment Same output as before but with new revision number
 
-comment --pause "Show to pretty slide!"
+comment --pause "Show the pretty slide!"
 
 comment --pause "Let's deploy the rebuild function that github will call"
 # scroll rebuild.yaml
