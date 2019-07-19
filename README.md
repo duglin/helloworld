@@ -219,35 +219,6 @@ Dockerhub namespace name instead of `duglin`, and change `GITREPO`
 to be the name of your Github clone of this repo - typically you should
 just need to swap `duglin` for your Github name.
 
-#### Setup our network
-
-Before we go any further, we'll need to modify our Istio configuration so that
-it allows outbound network traffic from our pods. By default Istio blocks all
-outbound traffic. To do this I have this `ingress.yaml` file:
-
-```
-# Allow for pods to talk to the internet
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"v1","data":{"istio.sidecar.includeOutboundIPRanges":"*"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"config-network","namespace":"knative-serving"}}
-  name: config-network
-  namespace: knative-serving
-data:
-  istio.sidecar.includeOutboundIPRanges: 172.30.0.0/16,172.20.0.0/16,10.10.10.0/24
-```
-
-Install this resouce:
-
-```
-$ ./kapply ingress.yaml
-configmap/config-network created
-```
-
-We'll talk more about the `kapply` command later.
-
 #### Secrets
 
 Before we get to the real point of this, which is deploying an application,
@@ -487,16 +458,16 @@ then we give it the name/location of the container image to use.
 Once that's done, if you want a couple of seconds for the image to download,
 you should then be able to ask for the list of services:
 ```
-$ ./kn service get
-NAME         DOMAIN                                                          GENERATION   AGE   CONDITIONS   READY   REASON
-helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   1            46s   3 OK / 3     True
+$ ./kn service list
+NAME         URL                                                                    GENERATION   AGE   CONDITIONS   READY   REASON
+helloworld   http://helloworld-default.kndemo.us-south.containers.appdomain.cloud   1            10s   3 OK / 3     True
 ```
 
 Notice that in there it will show you the full URL of the service that
 you can then curl against:
 
 ```
-$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
 c8xg6: Hello World!
 ```
 
@@ -506,7 +477,7 @@ it, route traffic to it and even give it a relatively nice URL.
 
 One more thing.... you can also access it via SSL:
 ```
-$ curl -sf https://helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ curl -sf https://helloworld-default.kndemo.us-south.containers.appdomain.cloud
 c8xg6: Hello World!
 ```
 
@@ -637,14 +608,14 @@ the full URL of the service, to find that do this:
 ```
 $ kubectl get ksvc
 NAME         DOMAIN                                                          LATESTCREATED      LATESTREADY        READY   REASON
-helloworld   helloworld.default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True
+helloworld   helloworld-default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True
 ```
 
 You'll notice that once the Service is ready the "DOMAIN" column will show
 the full URL of the Service and that's what we'll use to call it.
 
 ```
-$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
 s824d: Hello World!
 ```
 
@@ -747,7 +718,7 @@ the request.
 So, let's hit it:
 
 ```
-$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
 p8c2v: Hello World!
 ```
 
@@ -936,7 +907,7 @@ pod show up, which is our new version of the app running and ready to be
 hit:
 
 ```
-$ curl -sf helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
 7vh75: Now is the time for all good...
 ```
 
@@ -1031,7 +1002,7 @@ To see this rollout, we'll need to geneate some load. Make sure you've
 built the `load` tool (`make load`):
 
 ```
-$ ./load 10 30 http://helloworld.default.kndemo.us-south.containers.appdomain.cloud
+$ ./load 10 30 http://helloworld-default.kndemo.us-south.containers.appdomain.cloud
 ```
 
 What you should see is something like this:

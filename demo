@@ -25,8 +25,7 @@ function cleanDemo {
         -f service1.yaml \
         -f github.yaml \
         -f rebuild.yaml \
-        -f secrets.yaml \
-		-f ingress.yaml
+        -f secrets.yaml
 
     kubectl delete \
         clusterchannelprovisioner.eventing.knative.dev/in-memory-channel
@@ -68,9 +67,6 @@ doit ibmcloud ks cluster-config -s --export ${CLUSTER}
 doit $(cat out)
 $(cat out)
 
-comment Enable external internet access from our pods
-doit ./kapply ingress.yaml
-
 comment Create the secrets used for accessing DockerHub and Github
 doit ./kapply secrets.yaml
 
@@ -92,9 +88,9 @@ scroll helloworld.go
 
 comment Use the easy CLI first
 doit ./kn service create --image duglin/helloworld helloworld
-wait ./kn service get \| grep helloworld.default
-doit ./kn service get
-APPURL=$(grep helloworld out | sed "s/^.* \(helloworld.def.*cloud\).*$/\1/")
+wait ./kn service list \| grep helloworld.default
+doit ./kn service list
+APPURL=$(grep helloworld out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
 doit curl -sf ${APPURL}
 doit curl -sfk https://${APPURL}
 doit ./showresources all
