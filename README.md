@@ -2,7 +2,7 @@
 
 ## My First Knative Demo
 
-Note: this version uses Knative v0.4.0. Look at the
+Note: this version uses Knative v0.6.0. Look at the
 [releases](https://github.com/duglin/helloworld/releases) to find instructions
 for how to run the demo on older versions.
 
