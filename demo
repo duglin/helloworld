@@ -88,14 +88,17 @@ clear
 scroll helloworld.go
 
 comment Use the easy CLI first
-doit ./kn service create --image duglin/helloworld helloworld
-wait ./kn service list \| grep helloworld.default
+doit ./kn service create helloworld --image duglin/helloworld
+# wait ./kn service list \| grep helloworld.default
 # doit ./kn service list
 # APPURL=$(grep appdomain.cloud out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
 APPURL=$(kubectl get ksvc/helloworld -o custom-columns=url:status.url --no-headers)
+
+wait curl -sf ${APPURL}
 doit curl -sf ${APPURL}
+
 comment Now do it using https
-doit curl -sfk ${APPURL/http/https}
+doit curl -sf ${APPURL/http/https}
 doit ./showresources all
 doit ./kn service delete helloworld
 
@@ -127,6 +130,8 @@ comment "Deploy a new version (w/MSG) and traffic split 50/50"
 doit ./kapply -t service3.yaml
 doit ./kapply service3.yaml
 
+comment "Wait for v2 to be ready, then generate a load..."
+wait "kubectl get ksvc | grep helloworld-v2"
 doit --noscroll --slowoutput ./load 10 10 ${APPURL}
 
 comment --pause "Show the pretty slide!"
@@ -176,31 +181,11 @@ skip="1" doit --norepaint --untilgrep="$STRING" --pausetime=5 \
 doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v1}
 doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v2}
 
-doit ./showresources all
+doit --noexec "curl -sf ${APPURL}    (20 times)"
+doit 'for i in `seq 1 20` ; do curl -s '${APPURL}' ; done'
 
-exit 0
-
-comment "While we wait, let's look at the 'trigger' in the service"
-# scroll service2.yaml
-doit ./kapply -t service2.yaml
-
-comment "Waiting for new version (look for '$STRING')"
-
-skip="1" doit --untilgrep="^.*: ${STRING}$" --norepaint --pausetime=8 \
-  "curl -sf ${APPURL}"
-
-comment "Now let's do A/B testing... 10% of requests go to version 1"
-doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
-ver3=$(cat out)
-
-export LATEST="${ver3}"
-export PREVIOUS="${ver2}"
-
-# scroll service-patch.json
-doit ./kapply -t service-patch.json
-
-doit ./kapply -p ksvc/helloworld service-patch.json
-
-doit --noscroll --slowoutput ./load 10 30 ${APPURL}
+comment "Main URL only hits v1 and v2, not latest"
 
 doit ./showresources all
+
+rm cmds
