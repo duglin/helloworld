@@ -6,10 +6,13 @@ TMPFILE=kapply-tmp${RANDOM}
 CMD="apply"
 OBJECT=""
 VERBOSE=""
+BLANKMISSING=""
 
 while [[ "$1" == "-"* ]]; do
     case "$1" in
     -t)  TESTRUN="true" ;;
+	-b)  BLANKMISSING="true" ;;
+	-c)  CMD="create"  ;;
     -p)  CMD="path"
          OBJECT="$2"
          shift ;;
@@ -26,11 +29,13 @@ while [[ -n "${1}" ]]; do
     rm -f "${TMPFILE}"
     IFS=''
     cat "${file}" | while read line ; do
-        while [[ "$line" == *"\${"* && "$line" == *"}"* ]]; do
+	    pos=0
+        while [[ "${line:pos}" == *"\${"* && "$line" == *"}"* ]]; do
             pre=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\1/")
             var=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\2/")
             rest=$(echo "$line" | sed "s/\([^\$]*\)\${\([^}]*\)}\(.*\)/\3/")
 
+			save_var="${var}"
             # .file.property
             if [[ "$var" == "."* ]]; then
                 if [[ "${var:1}" == *"."* ]]; then
@@ -45,11 +50,17 @@ while [[ -n "${1}" ]]; do
                 if [[ "${!var}" == "" ]]; then
                     var=$(cat .env | grep "^${var}=" | sed "s/^[^=]*=//")
                 else
-                    var=${!var}
+                    var=${!var} # Use env var named "${var}"'s value
                 fi
             fi
 
-            line="$pre$var$rest"
+			if [[ "${var}" == "" && -z "${BLANKMISSING}" ]]; then
+			  var='${'${save_var}'}'
+			fi
+
+            line="$pre$var" #$rest"
+			pos=${#line}   # Don't reparse what we just added
+			line="$line$rest"
         done
         echo "$line" >> "${TMPFILE}"
     done
@@ -59,8 +70,8 @@ while [[ -n "${1}" ]]; do
     if [[ -n "$TESTRUN" ]]; then
         # cat "${TMPFILE}"
         true
-    elif [[ "$CMD" == "apply" ]]; then
-        kubectl apply -f "${TMPFILE}"
+    elif [[ "$CMD" == "apply" || "$CMD" == "create" ]]; then
+        kubectl $CMD -f "${TMPFILE}"
     else
         kubectl patch $OBJECT --type=json -p "$(cat ${TMPFILE})"
     fi

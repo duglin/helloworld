@@ -16,5 +16,7 @@ RUN chmod +x ./kubectl
 RUN mv ./kubectl /usr/local/bin/kubectl
 
 COPY --from=0 /rebuild /rebuild
+COPY task.yaml /task.yaml
+COPY kapply /kapply
 
 ENTRYPOINT [ "/rebuild" ]

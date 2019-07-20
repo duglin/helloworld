@@ -3,12 +3,18 @@ kind: Service
 metadata:
   name: rebuild
 spec:
-  runLatest:
-    configuration:
-      revisionTemplate:
-        spec:
-          container:
-            image: ${REBUILD_IMAGE}
-            env:
-            - name: KSVC
-              value: helloworld
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+    spec:
+      containers:
+        - image: ${REBUILD_IMAGE}
+          env:
+          - name: KSVC
+            value: helloworld
+          - name: GITREPO
+            value: ${GITREPO}
+          - name: APP_IMAGE
+            value: ${APP_IMAGE}

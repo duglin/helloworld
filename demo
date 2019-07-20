@@ -30,10 +30,11 @@ function cleanDemo {
     kubectl delete \
         clusterchannelprovisioner.eventing.knative.dev/in-memory-channel
     kubectl delete horizontalpodautoscaler.autoscaling/istio-pilot
+	kubectl delete taskrun --all
     set -e
     ) 2> /dev/null
 
-	kubectl delete -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml > /dev/null 2>&1
+	# kubectl delete -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml > /dev/null 2>&1
 
     rm -f cmds out
 
@@ -73,7 +74,7 @@ doit ./kapply secrets.yaml
 # Clean up from previous run
 # kubectl delete -f service2.yaml > /dev/null 2>&1 || true
 
-doit kubectl apply -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml
+# doit kubectl apply -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml
 
 if [[ -n "${skiptodemo}" ]]; then
     skip=""
@@ -89,10 +90,12 @@ scroll helloworld.go
 comment Use the easy CLI first
 doit ./kn service create --image duglin/helloworld helloworld
 wait ./kn service list \| grep helloworld.default
-doit ./kn service list
-APPURL=$(grep helloworld out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
+# doit ./kn service list
+# APPURL=$(grep appdomain.cloud out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
+APPURL=$(kubectl get ksvc/helloworld -o custom-columns=url:status.url --no-headers)
 doit curl -sf ${APPURL}
-doit curl -sfk https://${APPURL}
+comment Now do it using https
+doit curl -sfk ${APPURL/http/https}
 doit ./showresources all
 doit ./kn service delete helloworld
 
@@ -104,38 +107,44 @@ doit ./kapply service1.yaml
 comment Wait for the app to be deployed
 doit --noscroll --slowoutput ./pods --grep "helloworld.*Running"
 
-wait kubectl get ksvc \| grep helloworld.default
-
-doit kubectl get ksvc
-APPURL=$(grep helloworld out | sed "s/^.* http...\(helloworld.def.*cloud\).*$/\1/")
+wait kubectl get ksvc \| grep helloworld-default
 
 wait curl -sf ${APPURL}
 doit curl -sf ${APPURL}
 
-# scroll service2.yaml
+comment "Give it a name and be explicit about traffic"
 doit ./kapply -t service2.yaml
 doit ./kapply service2.yaml
-sleep 2
-doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
-ver1=$(cat out)
 
-comment Wait for the new version to be deployed
-doit --noscroll --slowoutput ./pods --grep "${ver1}.*Running"
+comment "Wait for the new version to be deployed"
+doit --noscroll --slowoutput ./pods --grep "helloworld-v1.*Running"
 echo
 
-wait "curl -sf ${APPURL} | grep ${ver1}"
+wait "curl -sf ${APPURL} | grep v1:"
 doit curl -sf ${APPURL}
-doit 'kubectl get ksvc/helloworld -o yaml | grep latestCreatedRevisionName: | sed "s/^.*: [^-]*-//g"' < /dev/null > /dev/null 2>&1
-ver2=$(cat out)
-comment Same output as before but with new revision number
+
+comment "Deploy a new version (w/MSG) and traffic split 50/50"
+doit ./kapply -t service3.yaml
+doit ./kapply service3.yaml
+
+doit --noscroll --slowoutput ./load 10 10 ${APPURL}
 
 comment --pause "Show the pretty slide!"
 
+doit ./kapply -t service4.yaml
+doit ./kapply service4.yaml
+
 comment --pause "Let's deploy the rebuild function that github will call"
-# scroll rebuild.yaml
-doit ./kapply -t rebuild.yaml
+# export REBUILDURL=$(kubectl get ksvc/helloworld -o custom-columns=url:status.url --no-headers | sed "s/helloworld/rebuild/")
+
+# doit ./kapply -t rebuild.yaml
 doit ./kapply rebuild.yaml
 wait "kubectl get ksvc | grep rebuild.*True"
+doit kubectl get ksvc
+
+# comment "Look at the Tekton TaskRun we'll use to build"
+# doit ./kapply -t -b task.yaml
+# doit ./kapply -b task.yaml
 
 comment "Now let's deploy the github webhook, linked to our 'rebuild' function"
 # scroll github.yaml
@@ -159,6 +168,18 @@ doit git add helloworld.go
 doit git commit -s -m "\"demo - $(date)\""
 doit git push origin master
 
+comment "Waiting for new version (look for '$STRING')"
+skip="1" doit --norepaint --untilgrep="$STRING" --pausetime=5 \
+    "curl -sf ${APPURL/helloworld/helloworld-helloworld-test}"
+    # "curl -sf ${TESTURL}"
+
+doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v1}
+doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v2}
+
+doit ./showresources all
+
+exit 0
+
 comment "While we wait, let's look at the 'trigger' in the service"
 # scroll service2.yaml
 doit ./kapply -t service2.yaml
@@ -180,6 +201,6 @@ doit ./kapply -t service-patch.json
 
 doit ./kapply -p ksvc/helloworld service-patch.json
 
-doit --noscroll --slowoutput ./load 10 30 http://${APPURL}
+doit --noscroll --slowoutput ./load 10 30 ${APPURL}
 
 doit ./showresources all

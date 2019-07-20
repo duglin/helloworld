@@ -5,12 +5,21 @@ metadata:
 spec:
   template:
     metadata:
-      name: helloworld-v1
+      name: helloworld-v2
     spec:
       containers:
       - image: ${APP_IMAGE}
+        env:
+        - name: MSG
+          value: Goodnight Moon!
       containerConcurrency: 1
   traffic:
   - tag: helloworld-v1
     revisionName: helloworld-v1
-    percent: 100
+    percent: 50
+  - tag: helloworld-v2
+    revisionName: helloworld-v2
+    percent: 50
+  - tag: helloworld-test
+    latestRevision: true
+    percent: 0

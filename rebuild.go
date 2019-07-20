@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,19 +25,52 @@ func Print(w http.ResponseWriter, format string, args ...interface{}) {
 	}
 }
 
-func Run(w http.ResponseWriter, cmd string, args ...string) (string, error) {
+func Run(cmd string, args ...string) (string, error) {
 	out, err := exec.Command(cmd, args...).CombinedOutput()
 	if err != nil {
-		Print(w, "Failed running: %s %s\n%s\n",
+		err = fmt.Errorf("Failed running: %s %s\n%s\n",
 			cmd, strings.Join(args, " "), err)
 	}
 	return string(out), err
 }
 
+func AnnotateService(svc string, key string, value string) error {
+	// Which Knative Service are we rebuilding?
+	if svc == "" {
+		svc = os.Getenv("KSVC")
+		if svc == "" {
+			svc = "helloworld"
+		}
+	}
+
+	stamp := time.Now().String()
+
+	_, err := Kubectl("patch", "ksvc/"+svc, "--type=merge",
+		"-p",
+		fmt.Sprintf(`{"spec":{"template":{"metadata":{"name":"","annotations":{"newimage":"%s"}}}}}`, stamp))
+
+	return err
+}
+
+func Kubectl(args ...string) (string, error) {
+	buf, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	if err != nil {
+		return "", fmt.Errorf("Can't load API token:%s\n", err)
+	}
+
+	token := "--token=" + string(buf)
+	args = append([]string{token}, args...)
+
+	out, err := Run("kubectl", args...)
+	if err != nil {
+		return "", fmt.Errorf("%s\n%s\n%s\n", strings.Join(args, " "), out, err)
+	}
+	return out, nil
+}
+
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		var out string
 		msg := map[string]interface{}{}
 
 		body, _ := ioutil.ReadAll(r.Body)
@@ -48,69 +82,37 @@ func main() {
 		body, _ = json.MarshalIndent(msg, "", "  ")
 		Print(w, "HEADERS:\n%v\nBODY:\n%s\n\n", r.Header, body)
 
-		if msg["action"] != nil {
+		envs := os.Environ()
+		sort.Strings(envs)
+		Print(w, "ENV:\n%s\n\n", strings.Join(envs, "\n"))
+
+		ceType := r.Header.Get("ce-type")
+
+		if ceType == "newimage" {
+			Print(w, "Got newimage event\n")
+			err := AnnotateService("", "newimage", time.Now().String())
+			if err != nil {
+				Print(w, "Error annotating: %s\n", err)
+				return
+			}
+			Print(w, "  Done\n")
+		} else if msg["action"] != nil {
 			Print(w, "Got issue event\n")
 		} else if msg["hook"] != nil {
 			Print(w, "Got hook event\n")
 		} else if msg["pusher"] != nil {
 			Print(w, "Got push event\n")
 
-			token, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+			Print(w, "Rebuild: %s\n", os.Getenv("REBUILDURL"))
+
+			out, err := Run("/kapply", "-c", "/task.yaml")
+			fmt.Printf("'kapply -v -c /task.yaml' output:\n")
 			if err != nil {
-				Print(w, "Can't load API token:%s\n", err)
+				Print(w, "Error: %s\n", err)
 				return
 			}
-
-			// Which Knative Service are we rebuilding?
-			ksvc := os.Getenv("KSVC")
-			if ksvc == "" {
-				ksvc = "helloworld"
-			}
-			Print(w, "ksvc: %s\n", ksvc)
-
-			// Get the YAML of the KnService so we can edit it
-			args := []string{"kubectl", "--token=" + string(token),
-				"get", "ksvc/" + ksvc, "-oyaml"}
-			if out, err = Run(w, args[0], args[1:]...); err != nil {
-				Print(w, "Error getting ksvc %q: %s\n%s\n", ksvc, out, err)
-				return
-			}
-
-			// Modify the:  trigger: ...   line
-			lines := strings.Split(out, "\n")
-			foundIt := false
-			for i, line := range lines {
-				if strings.Contains(line, "   trigger:") {
-					j := strings.Index(line, ":")
-					lines[i] = line[:j+2] + `"` + time.Now().String() + `"`
-					foundIt = true
-					break
-				}
-			}
-
-			if !foundIt {
-				Print(w, "Can't find trigger:\n%s\n", string(out))
-				return
-			}
-
-			// Save edited files to disk
-			tmpFile, _ := ioutil.TempFile("", "")
-			defer os.Remove(tmpFile.Name())
-			buf := []byte(strings.Join(lines, "\n"))
-			if err = ioutil.WriteFile(tmpFile.Name(), buf, 0700); err != nil {
-				Print(w, "Error saving yaml: %s\n", err)
-				return
-			}
-
-			// Apple the edits
-			Print(w, "  Applying edits...\n")
-			args = []string{"kubectl", "--token=" + string(token),
-				"apply", "-f", tmpFile.Name()}
-			if _, err = Run(w, args[0], args[1:]...); err != nil {
-				Print(w, "%s\n%s\n%s\n", strings.Join(args, " "), out, err)
-				return
-			}
-
+			fmt.Printf("%s\n", out)
+			fmt.Printf("----\n")
 			Print(w, "  Done\n")
 		} else {
 			Print(w, "Unknown event: %s\n", string(body))
@@ -119,6 +121,15 @@ func main() {
 			}
 		}
 	})
+
+	serviceURL, err := Kubectl("get", "ksvc", os.Getenv("K_SERVICE"),
+		"-ocustom-columns=url:status.url", "--no-headers")
+	if err != nil {
+		fmt.Printf("Error getting service URL: %s\n", err)
+		return
+	}
+	fmt.Printf("ServiceURL: %s\n", serviceURL)
+	os.Setenv("REBUILDURL", serviceURL)
 
 	fmt.Print("Listening on port 8080\n")
 	http.ListenAndServe(":8080", nil)

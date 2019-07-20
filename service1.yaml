@@ -3,10 +3,7 @@ kind: Service
 metadata:
   name: helloworld
 spec:
-  runLatest:
-    configuration:
-      revisionTemplate:
-        spec:
-          container:
-            image: ${APP_IMAGE}
-          containerConcurrency: 1
+ template:
+    spec:
+      containers:
+        - image: ${APP_IMAGE}
