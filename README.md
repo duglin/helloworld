@@ -1,5 +1,11 @@
 # HelloWorld!
 
+******************
+NOTE: this demo is being reworked so please see
+[this](https://github.com/duglin/helloworld/tree/v0.6.0-2019-07-19)
+version until all of the edits are complete.
+
+
 ## My First Knative Demo
 
 Note: this version uses Knative v0.6.0. Look at the
