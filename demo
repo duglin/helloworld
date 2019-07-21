@@ -92,7 +92,7 @@ doit ./kn service create helloworld --image duglin/helloworld
 # wait ./kn service list \| grep helloworld.default
 # doit ./kn service list
 # APPURL=$(grep appdomain.cloud out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
-APPURL=$(kubectl get ksvc/helloworld -o custom-columns=url:status.url --no-headers)
+APPURL=$(grep appdomain out)
 
 wait curl -sf ${APPURL}
 doit curl -sf ${APPURL}
@@ -121,7 +121,7 @@ doit ./kapply service2.yaml
 
 comment "Wait for the new version to be deployed"
 doit --noscroll --slowoutput ./pods --grep "helloworld-v1.*Running"
-echo
+# echo
 
 wait "curl -sf ${APPURL} | grep v1:"
 doit curl -sf ${APPURL}
@@ -176,15 +176,13 @@ doit git push origin master
 comment "Waiting for new version (look for '$STRING')"
 skip="1" doit --norepaint --untilgrep="$STRING" --pausetime=5 \
     "curl -sf ${APPURL/helloworld/helloworld-helloworld-test}"
-    # "curl -sf ${TESTURL}"
 
 doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v1}
 doit curl -sf ${APPURL/helloworld/helloworld-helloworld-v2}
 
-doit --noexec "curl -sf ${APPURL}    (20 times)"
+# doit --noexec "curl -sf ${APPURL}    (20 times)"
+comment "Show main URL only hits v1 and v2, not latest"
 doit 'for i in `seq 1 20` ; do curl -s '${APPURL}' ; done'
-
-comment "Main URL only hits v1 and v2, not latest"
 
 doit ./showresources all
 
