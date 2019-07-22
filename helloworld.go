@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	text := "Dogs are great"
+	text := "Dogs are great!"
 
 	if os.Getenv("MSG") != "" {
 		text += " " + os.Getenv("MSG")
