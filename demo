@@ -88,10 +88,7 @@ clear
 scroll helloworld.go
 
 comment Use the easy CLI first
-doit ./kn service create helloworld --image duglin/helloworld
-# wait ./kn service list \| grep helloworld.default
-# doit ./kn service list
-# APPURL=$(grep appdomain.cloud out | sed "s/^.*\(helloworld.def.*cloud\).*$/\1/")
+doit ./kn service create helloworld --image ${APP_IMAGE}
 APPURL=$(grep appdomain out)
 
 wait curl -sf ${APPURL}

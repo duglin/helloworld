@@ -1,12 +1,6 @@
 # HelloWorld!
 
-******************
-NOTE: this demo is being reworked so please see
-[this](https://github.com/duglin/helloworld/tree/v0.6.0-2019-07-19)
-version until all of the edits are complete.
-
-
-## My First Knative Demo
+## An Introductory Knative Demo
 
 Note: this version uses Knative v0.6.0. Look at the
 [releases](https://github.com/duglin/helloworld/releases) to find instructions
@@ -17,12 +11,13 @@ shows using Knative on the
 [IBM Cloud Kubernetes Service](https://cloud.ibm.com). You can pretty easily
 convert it to work on other platforms. The main reasons behind this
 are:
-- for me to learn more about Knative
+- showcase the basic os Knative so you can jump-start your usage of it
+- showcase some of the newer features of Knative, meaning this demo will
+  grow over time as new features are added to Knative
 - to share my experiences during this exercise
-- highlight some areas where I think Knative can be improved and I'll
-  be opening up issues for these things
+- highlight some areas where I think Knative can be improved
 
-When you run some of the scripts, it will show the commands in bold
+If you want use the `demo` script, it will show the commands in bold
 and the output of the commands in normal text. When it pauses, just press
 the spacebar to move to the next step. If the slow typing is annoying, press
 `f` when it pauses and it'll stop that.
@@ -49,7 +44,13 @@ isn't reliable, or the demo Gods are mad at you.
 
 ## Prep
 
-After you fork and clone this repo you'll need to create a `.secrets` file in
+To run the demo yourself, there are a couple of things you'll need to do.
+First, fork and clone this repo. Cloning alone isn't good enough because as
+part of the demo we will be updating some files and pushing them back to
+Github to demonstrate how to build new container images as your source code
+changes.
+
+Once you're cloned the repo, you'll need to create a `.secrets` file in
 the root of the clone directory that looks like this:
 
 ```
@@ -62,8 +63,8 @@ password=...
 Where:
 - `git_accesstoken` is a [Github Personal Access Token](https://github.com/settings/tokens)
 - `git_secrettoken` is the secret token you want the events from Github to use to verify they're authenticated with your Knative subscription. This can basically be any random string you want.
-- `username` is your Dockerhub username
-- `password` is your Dockerhub password
+- `username` is your container registry (e.g. Dockerhub) username
+- `password` is your container registry (e.g. Dockerhub) password
 
 I store all of the secret information I use during the demo in there. It's
 safer to put them in there than to put them into the real files of the repo
@@ -89,8 +90,7 @@ To create the cluster just run:
 $ ./mkcluster CLUSTER_NAME
 ```
 
-You can then skip to the next section.
-
+And you can then skip to the next section.
 
 If you decide to create it manually, then you'll first need to get some info
 about our LANs since the `ibmcloud ks cluster-create` command requires that:
@@ -185,33 +185,6 @@ you can see the Knative Services and Pods as they come-n-go. Make sure
 you run `$(ibmcloud ks cluster-config --export CLUSTER_NAME)` in that other
 window too.
 
-### Using the `demo` script
-
-If you're going to run the `demo` script then you'll need to modify these
-lines in there:
-
-```
-export APP_IMAGE=${APP_IMAGE:-duglin/helloworld}
-export REBUILD_IMAGE=${REBUILD_IMAGE:-duglin/rebuild}
-export GITREPO=${GITREPO:-duglin/helloworld}
-```
-
-Change the `APP_IMAGE` and `REBUILD_IMAGE` values to use your
-Dockerhub namespace name instead of `duglin`, and change `GITREPO`
-to be the name of your Github clone of this repo - typically you should
-just need to swap `duglin` for your Github name.
-
-```
-$ ./demo [ CLUSTER_NAME ]
-```
-`CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
-already points to your IKS cluster.
-
-When done you can jump the the [Cleaning Up](#cleaning-up) section.
-
-
-### Manually running the demo / Demo details
-
 Before you begin, set these environment variables:
 
 ```
@@ -225,12 +198,30 @@ Dockerhub namespace name instead of `duglin`, and change `GITREPO`
 to be the name of your Github clone of this repo - typically you should
 just need to swap `duglin` for your Github name.
 
+### Using the `demo` script
+
+To have the computer type all of the demo commands for you, just run:
+
+```
+$ ./demo [ CLUSTER_NAME ]
+```
+`CLUSTER_NAME` is optional if your `KUBECONFIG` environment variable
+already points to your IKS cluster.
+
+When the demo is done you can jump the the [Cleaning Up](#cleaning-up) section.
+
+
+### Manually running the demo / Demo details
+
+This section will walk through the steps executed by the `demo` script
+providing commentary as you do each step.
+
 #### Secrets
 
 Before we get to the real point of this, which is deploying an application,
-I needed to create a Kuberneres Secret that holds all of the private
+we needed to create a Kuberneres Secret that holds all of the private
 keys/tokens/usernames/etc... that will be used during the demo.
-I also needed to create some new RBAC rules so that our "rebuild" service,
+We also needed to create some new RBAC rules so that our "rebuild" service,
 which is running under the "default" Service Account,
 has the proper permissions to access and edit the Knative Service to force it
 to rebuild - which I'll talk more about later.
@@ -296,7 +287,7 @@ a script called `kapply` which takes a yaml file and replaces references
 like those with their real values before invoking `kubectl apply`. This allows
 me to share my yaml with you w/o asking you to modify these files and run
 the risk of you checking them into your github repo by mistake. All you need
-to do is create the `.secrets` files I mentioned at the top of this README.
+to do is create the `.secrets` files I mentioned previously.
 
 The you can create the secret via:
 
@@ -308,123 +299,55 @@ clusterrole.rbac.authorization.k8s.io/rebuild created
 clusterrolebinding.rbac.authorization.k8s.io/rebuild-binding created
 ```
 
-#### Install the Kaniko build template
-
-Almost there! Let's install the Kaniko build template:
-
-```
-$ kubectl apply -f https://raw.githubusercontent.com/knative/build-templates/master/kaniko/kaniko.yaml
-buildtemplate.build.knative.dev/kaniko created
-```
-
-Build templates are like CloudFoundry buildpacks, they'll take your source
-and create a container image from it, and then push it to some container
-registry. If you look at the yaml for this resource you'll see something
-like this:
-
-```
-apiVersion: build.knative.dev/v1alpha1
-kind: BuildTemplate
-metadata:
-  name: kaniko
-spec:
-  parameters:
-  - name: IMAGE
-    description: The name of the image to push
-  - name: DOCKERFILE
-    description: Path to the Dockerfile to build.
-    default: /workspace/Dockerfile
-
-  steps:
-  - name: build-and-push
-    image: gcr.io/kaniko-project/executor
-    args:
-    - --dockerfile=${DOCKERFILE}
-    - --destination=${IMAGE}
-    env:
-    - name: DOCKER_CONFIG
-      value: /builder/home/.docker
-```
-
-Most of what's in there should be obvious:
-- `image: gcr.io/kaniko-project/executor` defines the container image that will
-  be used to actually do all of the work of building things.
-- `args` are the command line flags to pass to builder container
-- `env` defines some enviornment variables for that container
-- `parameters` define some parameters that users of the template can specify
-- `steps` allows for you to define a list of things to do in order to build
-  the image
-
-What's interesting about this to me is that I'm wondering if this is
-overly complex and overly simplified at the same time. What I mean by that
-is this... the template provides an image to do all sorts of magic to build
-our image - that part makes sense to me. However, they then suggest that
-people will want to mix-n-match the calling of multiple images/steps by
-allowing template owners to define `steps`. Why not just put all of that
-logic into the one image?
-
-If the argument is that you may need to string these steps together, then
-why do we think we can get by with a simple ordered list? It won't be long
-before people need real control flow (like `if` statements) between the
-steps. It seems to me it would be better to tell people to just put all of
-the logic they need into an image and do whatever orchestration of steps
-within that. Let's not head down the path of inventing some kind of scripting
-language here. That's why I think it's overly complex (I don't see the need
-for `steps`) and overly simplified (if you do see the need then a simple list
-isn't sufficient in the long run). The point is, it should be trivially easy
-to create new BuildTemplates so that anyone can do it any time, and we don't
-need a more formalized/complex system.
-
-And finally, originally I didn't use Build Templates, I just put a reference
-to the Kaniko image directly into my Service definition's build section and
-that, of course, worked with basically the same amount of yaml - but didn't
-introduce a level of indirection that could only lead to added perception
-of complexity. But I gave in and added Build Templates so I could
-ramble about them here :-)
-
-Anyway, moving on...
-
 #### Our application
 
 For this demo I'm just using a very simple HTTP server that responds
-to any request with `Hello World!`, here's the source
+to any request with `Hello World!` plus whatever text is in the `MSG`
+environment variable.
+
+Here's the source
 ([`helloworld.go`](https://github.com/duglin/helloworld/blob/master/helloworld.go)):
 
 ```
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"os"
-	"strings"
-	"time"
+    "fmt"
+    "net/http"
+    "os"
+    "strings"
+    "time"
 )
 
 func main() {
-	text := "Hello World!"
+    text := "Hello World!"
 
-	rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-7vh75
-	if i := strings.LastIndex(rev, "-"); i > 0 {
-		rev = rev[i+1:] + ": "
-	}
+    if os.Getenv("MSG") != "" {
+        text += " " + os.Getenv("MSG")
+    }
 
-	msg := fmt.Sprintf("%s%s\n", rev, text)
+    rev := os.Getenv("K_REVISION") // K_REVISION=helloworld-7vh75
+    if i := strings.LastIndex(rev, "-"); i > 0 {
+        rev = rev[i+1:] + ": "
+    }
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Got request\n")
-		time.Sleep(500 * time.Millisecond)
-		fmt.Fprint(w, msg)
-	})
+    msg := fmt.Sprintf("%s%s\n", rev, text)
 
-	fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
-	http.ListenAndServe(":8080", nil)
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Printf("Got request\n")
+        time.Sleep(500 * time.Millisecond)
+        fmt.Fprint(w, msg)
+    })
+
+    fmt.Printf("Listening on port 8080 (rev: %s)\n", rev)
+    http.ListenAndServe(":8080", nil)
 }
 ```
 
 The `sleep` is in there just to slow things down a bit so that when we
 increase the load on the app it'll cause one instance of the app to be
-created for each client we have generating requests.
+created for each client we have generating requests. It makes for a better
+live demo experience :-)
 
 The app will print part of the `K_REVISION` environment variable so
 we can see which revision number of our app we're hitting.
@@ -448,33 +371,33 @@ need to live with it.
 
 We'll first deploy our Knative Service the really easy way, via the
 Knative `kn` command line tool. The source code is available at
-https://github.com/knative/client but there is no distribution yet, so
-you'll have to build it yourself. For convinience, I've included the
-`kn` exectuable in this directory - but it's only for Linux.
+https://github.com/knative/client .
+For convinience, I've included the `kn` exectuable in this directory - but
+ it's only for Linux.
 
 ```
-$ ./kn service create helloworld --image $(APP_IMAGE)
+$ ./kn service create helloworld --image ${APP_IMAGE}
 Service 'helloworld' successfully created in namespace 'default'.
+Waiting for service 'helloworld' to become ready ... OK
+
+Service URL:
+http://helloworld-default.v06.us-south.containers.appdomain.cloud
 ```
 
 As should be clear from the first two arguments this `kn` command is creating
 a service. The next argument is the service name (`helloworld`) and
 then we give it the name/location of the container image to use.
 
-Once that's done, if you want a couple of seconds for the image to download,
-you should then be able to ask for the list of services:
-```
-$ ./kn service list
-NAME         URL                                                                    GENERATION   AGE   CONDITIONS   READY   REASON
-helloworld   http://helloworld-default.kndemo.us-south.containers.appdomain.cloud   1            10s   3 OK / 3     True
-```
+Once the command is done, you'll see that it shows you the URL where the
+service is available. IKS will automatically configure the networking
+infrastructure for you and give you a nice DNS name so you don't need
+to do anything of that yourself.
 
-Notice that in there it will show you the full URL of the service that
-you can then curl against:
+With that URL you can now hit (curl) it:
 
 ```
-$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
-c8xg6: Hello World!
+$ curl -sf http://helloworld-default.v06.us-south.containers.appdomain.cloud
+krc9z: Hello World!
 ```
 
 With that, you've now successfully deploy a Knative Service and behind
@@ -483,8 +406,8 @@ it, route traffic to it and even give it a relatively nice URL.
 
 One more thing.... you can also access it via SSL:
 ```
-$ curl -sf https://helloworld-default.kndemo.us-south.containers.appdomain.cloud
-c8xg6: Hello World!
+$ curl -sf https://helloworld-default.v06.us-south.containers.appdomain.cloud
+krc9z: Hello World!
 ```
 
 So, you also get security too! All with one simple command.
@@ -494,35 +417,37 @@ for us:
 
 ```
 $ ./showresources all
-deployment.apps/helloworld-hqfkl-deployment
-endpoint/helloworld-hqfkl-service
+deployment.apps/helloworld-krc9z-deployment
+endpoint/helloworld-krc9z
+endpoint/helloworld-krc9z-metrics
+endpoint/helloworld-krc9z-priv
 endpoint/kubernetes
-pod/helloworld-hqfkl-deployment-bfc557bb7-llrql
-replicaset.apps/helloworld-hqfkl-deployment-bfc557bb7
+pod/helloworld-krc9z-deployment-7875dcb55-cdksl
+replicaset.apps/helloworld-krc9z-deployment-7875dcb55
 service/helloworld
-service/helloworld-hqfkl-service
+service/helloworld-krc9z
+service/helloworld-krc9z-metrics
+service/helloworld-krc9z-priv
 service/kubernetes
 
-buildtemplate.build.knative.dev/kaniko
 clusterchannelprovisioner.eventing.knative.dev/in-memory
-clusteringress.networking.internal.knative.dev/route-8e49eb80-7a0e-11e9-8195-5ee
-95b627dab
+clusteringress.networking.internal.knative.dev/route-032c8cb8-6faa-4bdb-8fcf-4db63337b91b
 configuration.serving.knative.dev/helloworld
-image.caching.internal.knative.dev/helloworld-hqfkl-cache
-image.caching.internal.knative.dev/kaniko-19737443-00000
-podautoscaler.autoscaling.internal.knative.dev/helloworld-hqfkl
-revision.serving.knative.dev/helloworld-hqfkl
+image.caching.internal.knative.dev/helloworld-krc9z-cache
+podautoscaler.autoscaling.internal.knative.dev/helloworld-krc9z
+revision.serving.knative.dev/helloworld-krc9z
 route.serving.knative.dev/helloworld
+serverlessservice.networking.internal.knative.dev/helloworld-krc9z
 service.serving.knative.dev/helloworld
 ```
 
-The first list is the list of native Kube resources, and the second list
+The first list is the list of core Kube resources, and the second list
 contains the Knative ones. That's a lot of stuff!  And I mean that in a
-good way! One of my goals for Knative is to offer up a more user
+good way! One of my hopes for Knative is to offer up a more user
 friendly user experience for Kube users. Sure Kube has a ton of features
 but with that flexibility has come complexity. Think about how much learning
 and work is required to setup all of these resources that Knative as done
-for us. I no longer need to understand Ingress, load-balancing, auto-scaling,
+for us. We no longer need to understand Ingress, load-balancing, auto-scaling,
 etc. Very nice!
 
 Back to our demo...
@@ -546,34 +471,39 @@ kind: Service
 metadata:
   name: helloworld
 spec:
-  runLatest:
-    configuration:
-      revisionTemplate:
-        spec:
-          container:
-            image: ${APP_IMAGE}
-          containerConcurrency: 1
+ template:
+    spec:
+      containers:
+        - image: duglin/helloworld
 ```
 
 Let's explain what some of these fields do:
-- `metadata.name`: Like all Kube resources, this names our Service
-- `runLatest`: here we have some choices as to how we define our Service.
-  In particular we can specify one or multiple containers and that will
-  not only control what is currently being run, but how we want to do a
-  rolling upgrade to a new version - for example, how much traffic do we want
-  to go to v1 versus v2 of our app. I'm not going to go into this now,
-  so we'll just use `runLatest` which takes a single container definition.
-- `configuration`: just a wrapper. In my opinion this should be removed,
-  it serves no real purpose. Under the covers Knative will create a
-  `Configuration` resource for this nested data, but that doesn't mean
-  we need to expose it to the user.
-- `revisionTemplate`: Each version of our application is called a
-  `revision`. So, what we're doing here is defining a version of our app
-  and its `image` value.
-- `containerConcurrency`: this tells the system how many concurrent
-  requests to allow to each instance of our app at a single time. When
-  that threshold is met, the app will be scalled up and new instances
-  are created.
+- `metadata.name`: Like all Kube resources, this names our Service, and
+  matches what we put on the `kn` command line.
+- `spec.template`: One concept that might take some getting used to is the
+  notion that the `spec` section of a Knative Service resource doesn't really
+  define the Service itself directly. The better way to think of it is that
+  you provide it a "template" for what the next version (revision) of your
+  service should look like. While in practice, yes the `spec.template` will
+  normally match what the service currently looks like, it may be important
+  at times to understand that behind the scenes each version of your service
+  has an associated Revison resource with its own unique configuration 
+  information - which is populated from this `template`.  But for now,
+  it's ok to think of `spec.template` as your desired state for the latest
+  version of the Service.`
+- `spec.template.spec`: This is taken directly from the Kubernetes Pod
+  spec defintion. Meaning, you can put anything from the Pod spec in here
+  to define your app. However, while from a syntax perspective you should
+  be able to copy-n-paste your Pod spec into here, since Knative doesn't
+  support all of the Pod's features you may get an error messagei in
+  some cases.
+- `spec.template.spec.containers.image`: This just defines which container
+  image this version of the Service should use.  Same as what we saw on
+  the `kn` command line.
+
+For the most part you'll see that there really is only 2 pieces of information
+in here - the service name and the image name. Same as the `kn` command line.
+There's just more yaml because, well, it's yaml and Kubernetes :-)
 
 Now we can deploy it:
 
@@ -587,12 +517,12 @@ happened:
 
 ```
 $ ./pods
-Cluster: kndemo
-K_SVC_NAME                     LATESTREADY                    READY
-helloworld                     helloworld-s824d               True
+Cluster: v06
+NS/NAME                        LATESTREADY                    READY
+helloworld                     helloworld-9frrr               True    
 
 POD_NAME                                                STATUS           AGE
-helloworld-s824d-deployment-78796cb584-jswh6            Running          90s
+helloworld-9frrr-deployment-65b66d976d-j8q7w            Running          5s
 ```
 
 The output of `pods` shows the list of Knative services (at the top)
@@ -601,42 +531,38 @@ followed by the list of active pods.
 When the pod is in the `Running` state, press control-C to stop it.
 
 You should see your `helloworld` Knative service with one revision
-called something like `helloworld-s824d`, and a pod with a really funky name
+called something like `helloworld-9frrr`, and a pod with a really funky name
 but that starts with that revision name.
 
 Notice the word "deployment" in there - that's because under the covers
-Knative create a Kubernetes deployment resource and this pod is related
-to that deployment.
+Knative create a Kubernetes Deployment resource and this pod is related
+to that Deployment.
 
-So, it's running - let's invoke it. Before we do, we first need to know
-the full URL of the service, to find that do this:
+So, it's running - let's invoke it, and we can use the same URL as before
+when we used the `kn` command. But if you forgot it, you can do this:
 
 ```
 $ kubectl get ksvc
-NAME         DOMAIN                                                          LATESTCREATED      LATESTREADY        READY   REASON
-helloworld   helloworld-default.kndemo.us-south.containers.appdomain.cloud   helloworld-s824d   helloworld-s824d   True
+NAME         DOMAIN                                                             LATESTCREATED      LATESTREADY        READY   REASON
+helloworld   http://helloworld-default.v06.us-south.containers.appdomain.cloud  helloworld-9frrr   helloworld-9frrr   True
 ```
 
 You'll notice that once the Service is ready the "DOMAIN" column will show
-the full URL of the Service and that's what we'll use to call it.
+the full URL of the Service.
 
 ```
-$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
-s824d: Hello World!
+$ curl -sf http://helloworld-default.v06.us-south.containers.appdomain.cloud
+9frrr: Hello World!
 ```
 
-That's it. Once we got past the setup (which is a bit much, but I'm hoping
-is just a one-time thing for most people), the deployment of the app itself
-was a single `kuebctl` command with a single resource definition. That's
-a huge step forward for Kube users
+That's it. Notice that the deployment of the Service was pretty easy whether
+you use the `kn` or the `kubectl` command line tool. And that's a huge
+step forward for Kubernetes users.
 
-#### Adding build
+#### Updating Our Service
 
-So, our first app is pretty simple, we just point to a pre-built container
-image. However, Knative has the ability to build the image for you. Let's look
-at the
-[`service2.yaml`](https://github.com/duglin/helloworld/blob/master/service2.yaml)
-file to add this build logic:
+Now that we have our app running, let's make some changes and roll out
+a new version. Let's look at the next yaml file we'll use:
 
 ```
 apiVersion: serving.knative.dev/v1alpha1
@@ -644,171 +570,275 @@ kind: Service
 metadata:
   name: helloworld
 spec:
-  runLatest:
-    configuration:
-      build:
-        apiVersion: build.knative.dev/v1alpha1
-        kind: Build
-        metadata:
-          annotations:
-            trigger: "15"
-        spec:
-          serviceAccountName: build-bot
-          source:
-            git:
-              revision: master
-              url: https://github.com/${GITREPO}
-          template:
-            name: kaniko
-            arguments:
-            - name: IMAGE
-              value: index.docker.io/${APP_IMAGE}
-      revisionTemplate:
-        spec:
-          container:
-            image: ${APP_IMAGE}
-          containerConcurrency: 1
+  template:
+    metadata:
+      name: helloworld-v1
+    spec:
+      containers:
+      - image: duglin/helloworld
+      containerConcurrency: 1
+  traffic:
+  - tag: helloworld-v1
+    revisionName: helloworld-v1
+    percent: 100
 ```
 
-The `revisionTemplate` section at the bottom is the same as before. The
-`build` section is pretty verbose, but let's focus on the key bits:
-- `serviceAccountName`: this is the Kube Service Account to use when
-  running the builder containers.
-- `source`: points to our source code. In this case we're pointing to a
-  Github repo - and it's `master` branch
-- `template`: refers to the Knative Build Template to use to build the image,
-  which refers to the Kaniko build template we deployed earlier..
-  Also, we're passing in the name of the DockerHub repo to store
-  the results.
+You should notice 2 main differences here:
+1 - `spec.template.metadata.name`: This is different from the Service
+    name you'll see above. This provides a name for **this** revision
+    of your service. We're going to provide a name so that we can
+	reference it in the `traffic` section below.
+2 - `spec.traffic`: This section allows for us to tell Knative how to
+    route traffic between the various versions (revisions) of our
+	Service. This is useful when you want to do a rolling (A/B) update
+	of your sevice rather than to switch all traffic to the new version
+	immediately.
 
-As I said, it's pretty verbose, but not too much info and should be fairly
-obvious/easy to understand. But, it would be nice if it were much much
-smaller.
+	In this case we're defining just one `traffic` section and telling
+	Knative to send all (100%) of the traffic to the revision called
+	`helloworld-v1` - which is what we're naming the new revision.
+	You'll notice there's `tag` property too - this allows us to give
+	a unique prefix to a specialize URL for just that one revision if
+	you want to send request directly to it and avoid the percentage
+	based routing logic. In this case, to keep it simple, we picked the
+	same name as the revision.
 
-Let's deploy this next version of our app's deployment:
+Once final thing, there's also now `containerConcurrency` property in
+there. We're setting that to `1` so that each instance of the service will
+only process one request at time, instead of multiple. This makes for a
+better demo when we generate a load since it'll force the Service to scale
+up pretty quickly.
+
+With that, let's go ahead and apply this yaml to update our service:
 
 ```
 $ ./kapply service2.yaml
 service.serving.knative.dev/helloworld configured
 ```
 
-If you're not running `./pods` in another window, run it again:
+In the "pods" window you should see something like this:
 
 ```
-$ ./pods
-Cluster: kndemo
-K_SVC_NAME                     LATESTREADY                    READY
-helloworld                     helloworld-p8c2v               True
+$ ./pods --grep helloworld-v1.*Running
+Cluster: v06
+NS/NAME                        LATESTREADY                    READY
+helloworld                     helloworld-v1                  True
 
 POD_NAME                                                STATUS           AGE
-helloworld-s824d-deployment-d9c684bbf-267hc             Running          2m32s
-helloworld-p8c2v-pod-7aeb9b                             Init:2/3         15s
-helloworld-p8c2v-deployment-5769dd7756-8n9kj            Running          22s
+helloworld-9frrr-deployment-65b66d976d-j8q7w            Running          23s
+helloworld-v1-deployment-6bfbd447c-8x8wp                Running          11s
 ```
 
-What you'll notice is a "build pod" get created
-that will do the build as defined in the yaml. Then you'll see it vanish and a
-new `helloworld-p8c2v-deployment...` pod appear. Notice it has "2" in there
-as the revision number, not "1". This is because any change to the
-`configuration` section of the yaml will cause a new revision to be created.
+Notice that we now have a 2nd revision and it's name is `helloworld-v1`.
 
-You should also notice that both revision 1 and revision 2 are running.
-That's because Knative did a rolling upgrade - and kepts the old version
-around until the new one is ready and working. Revision 1 will eventually
-vanish after about 60 seconds since no one is hitting it and no one will
-since our routing setup (as of now) will always point to the latest revision.
-It's worth noting that revision 2 will vanish too, but only because no one is
-hitting it. Once a request comes it, Knative will recreate that pod to handle
-the request.
-
-So, let's hit it:
+Hitting it you should see:
 
 ```
-$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
-p8c2v: Hello World!
+$ curl -sf http://helloworld-default.v06.us-south.containers.appdomain.cloud
+v1: Hello World!
 ```
 
-Nothing too exiciting here, it worked as expected - just notice it's showing
-`p8c2v` as the revision number, not `s824d`.
+Notice we use the same URL but now the version number on the putput shows
+`v1`.
 
-#### Hooking it up to Github events
+#### Traffic Splitting
 
-Now that we have the basics of our app dev pipeline defined, let's make it
-more exciting by having new versions of our app built and deployed
-automatically as new changes are pushed into our Github repo.
+With that brief introduction to traffic management, let's actually do some
+real traffic splitting by deploying a 3rd version of the app:
 
-For this to work there are a couple of things we need to setup:
+```
+$ ./kapply -t service3.yaml
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld
+spec:
+  template:
+    metadata:
+      name: helloworld-v2
+    spec:
+      containers:
+      - image: duglin/helloworld
+        env:
+        - name: MSG
+          value: Goodnight Moon!
+      containerConcurrency: 1
+  traffic:
+  - tag: helloworld-v1
+    revisionName: helloworld-v1
+    percent: 50
+  - tag: helloworld-v2
+    revisionName: helloworld-v2
+    percent: 50
+```
 
-- we need a `rebuild` service. This service will do nothing more than
-  "poke" our Knative service to kick off a new build. This service will
-  be invoked each time a Github "push" event is received.
+Couple of things to notice here:
+- We named this version of the app `helloworld-v2`.
+- We added an environment variable called `MSG` to the app. This just
+  allows us to see some different output when we hit this version.
+- We've modified the `traffic` section so that we now have two
+  versions of the app that will get traffic. Each gets 50% and the two
+  versions are the v1 and v2 versions - the initial version we deployed
+  will eventually be removed from the system since we never refernce it
+  in a traffic section.
 
-  As of now, Knative does not have a good way to trigger a new build of
-  a service other than for "something" to twiddle the configuration
-  of the Service. So, remember in our previous section we added the
-  build section to our Service, that was a "twiddle" and we saw it
-  do a build. For our purposes, or `rebuild` Service will do almost
-  the same thing, it will edit the Service's build section in a
-  way to cause Knative to think there's a change and therefore kick off
-  a build.
+Let's deploy this:
 
-- we'll also need a `github` event source. This is a special resource
-  type in Knative that does two things:
-  - it will create a webhook in our github repo to send events to
-    our Knative installation - which is really a github Knative service
-  - it will define the "event sink" for these events, which in our case
-    is our `rebuild` Service.
+```
+$ ./kapply service3.yaml
+service.serving.knative.dev/helloworld configured
+```
 
-Let's look at the `rebuild` service ([`rebuild.yaml`](https://github.com/duglin/helloworld/blob/master/rebuild.yaml)):
+We can now generate some load on our service and we should see roughly
+1/2 of the traffic go to v1 and 1/2 go to v2:
+
+```
+$ ./load 10 10 http://helloworld-default.v06.us-south.containers.appdomain.cloud
+
+01: v1: Hello World!                                                            
+02: v1: Hello World!                                                            
+03: v1: Hello World!                                                            
+04: v2: Hello World! Goodnight Moon!                                            
+05: v1: Hello World!                                                            
+06: v2: Hello World! Goodnight Moon!                                            
+07: v2: Hello World! Goodnight Moon!                                            
+08: v2: Hello World! Goodnight Moon!                                            
+09: v2: Hello World! Goodnight Moon!                                            
+10: v2: Hello World! Goodnight Moon!                                            
+```
+
+The `load` command (as specified) will simulate 10 clinets hitting the URL
+for 10 seconds. Notice we do in fact see both versions getting hit.
+
+#### Hidden Traffic
+
+The traffic split we did the previous section was nice, but often times
+when you deploy a new version of an app you don't want it exposed to your
+users right away. Perhaps you only want your tests to hit it. Knative
+can help here too. Let's look at another version of the yaml:
+
+```
+apiVersion: serving.knative.dev/v1alpha1
+kind: Service
+metadata:
+  name: helloworld
+spec:
+  template:
+    metadata:
+      name: helloworld-v2
+    spec:
+      containers:
+      - image: duglin/helloworld
+        env:
+        - name: MSG
+          value: Goodnight Moon!
+      containerConcurrency: 1
+  traffic:
+  - tag: helloworld-v1
+    revisionName: helloworld-v1
+    percent: 50
+  - tag: helloworld-v2
+    revisionName: helloworld-v2
+    percent: 50
+  - tag: helloworld-test
+    latestRevision: true
+    percent: 0
+```
+
+Here we didn't modify anything about the `template` but we did add a new
+`traffic` section. In there we told Knative a couple of things. First,
+we gave it a name via the `tag` - `helloworld-test`. As before this is
+just some unique name for a dedicated URL we can use to talk to the revision
+pointed to by this traffic section. Next, the `latestRevision` property.
+If we have a name of a version we wanted to refernce we could have put
+that name on `revisionName` property, but in this case we're asking
+Knative to make this traffic section point to the very latest version
+of the app regardless of what its name is.
+
+Finally, we told Knative to send no traffic (`0` percent)
+to this version we're pointing to. This means that when people hit our main
+URL they'll never talk to this revision. The only want we can talk to this
+one is via the dedicated URL that Knative will setup for us. One thing
+to note is that as of right now the "latest" version of the app just
+happens to be "v2" so both the 2nd and 3rd traffic sections actually
+point to the same version - and that's ok.
+
+We're doing all of this because in the next section we'll be updating our
+app and I want to show how only traffic to the `helloworld-test` URL
+will be able to see it.
+
+Let's deploy it:
+
+```
+$ ./kapply service4.yaml
+service.serving.knative.dev/helloworld configured
+```
+
+#### Adding Build
+
+In this part of the demo we're going to connect our Github account up to
+our service so that when a new "push" to the "master" branch happens we'll
+kick off a build of our app and deploy it.
+
+To do this we'll first need to deply a "rebuild" service. This is really
+nothing more than a Knative Service that waits for an incoming HTTP request
+from Github's webhook system. When that request indicates that it was a
+"push" event on our git repo, we'll kick off a build of the latest version
+of the source, build a new container image and the deploy a new version of
+our app using that image.
+
+I'm not going to get into how the "rebuild" service works, but if you
+really want to see it you can look at the source code
+[rebuild.go](./rebuild.go).
+
+To deploy it we'll apply this yaml:
+
 ```
 apiVersion: serving.knative.dev/v1alpha1
 kind: Service
 metadata:
   name: rebuild
 spec:
-  runLatest:
-    configuration:
-      revisionTemplate:
-        spec:
-          container:
-            image: ${REBUILD_IMAGE}
-            env:
-            - name: KSVC
-              value: helloworld
+  template:
+    spec:
+      containers:
+        - image: ${REBUILD_IMAGE}
+          env:
+          - name: KSVC
+            value: helloworld
+          - name: GITREPO
+            value: ${GITREPO}
+          - name: APP_IMAGE
+            value: ${APP_IMAGE}
 ```
 
-This should look very much like our `helloworld` service definition.
-For the most part it is just defining the container image to run
-`${REBUILD_IMAGE}`, and passing in the name of the Knative Service to
-rebuild.
+You'll notice that we pass in some environment variables telling it which
+git repo to accept events from, which Knative service to update, and
+where to store the built image.
 
-One thing I will mention here though, when I first wrote the rebuild service
-I had a very single-purpose workflow in mind. By that I mean, I knew the
-rebuild service would only be called when we got an event, and it only had
-to edit the Knative Service's build definition to do its job. So I wrote the
-code in
-[`rebuild.go`](https://github.com/duglin/helloworld/blob/master/rebuild.go)
-to do **just** that - it would do nothing but call `kubectl`. I completely
-forgot that this is a Knative Service! Meaning, it is meant to be an HTTP
-server waiting for requests - it is not a single-run entity. And, because I
-didn't have an HTTP server as part of its logic, after it invoked
-`kubectl`, it would exit. But then, of course, Knative/Kube would
-interpret this as a "crash" and restart it - resulting in an endless loop of
-rebuilds! I'm mentioning this because as you start to chain Services
-(or Functions) together, it'll be easy to think of them as simple RPC
-entities, and they're not - they're actually mini servers and need to be
-written that way. It's obvious when you think about it, but I thought
-I'd share my mental lapse.
-
-Let's deploy it:
+Let's execute that:
 
 ```
 $ ./kapply rebuild.yaml
 service.serving.knative.dev/rebuild created
 ```
 
-Moving on to the Github event source - the yaml for that one is this
-([`github.yaml`](https://github.com/duglin/helloworld/blob/master/github.yaml)):
+Now we need to connect this "rebuild" service up to Github. To do this
+we'll use Knative Eventing. As part of Eventing there are things called
+"importers". You can think of these as utilities that help you subscribe and
+manage events from event producers. In this case we're going to deploy
+a Github importer (also known as an "event source") that will talk to Github
+for us to create the webhook for our git repo and tell it to send events
+to the importer, who will then pass it on to our rebuild service.
+
+One thing I need to mention, the event that is passed on to the Knative
+service is a [CloudEvent](https://cloudevents.io). All that means is that
+some common metadata about the event (such as who sent it or what it's
+`type` is) are in well-defined locations so that regardless of who the
+event producer is, your code should be able to get that information by
+just looking at one specific location. Just to make life a little easier.
+
+To set this up we'll use this yaml:
 
 ```
 apiVersion: sources.eventing.knative.dev/v1alpha1
@@ -819,7 +849,7 @@ spec:
   eventTypes:
     - push
     - issues
-  ownerAndRepository: ${GITREPO}
+  ownerAndRepository: duglin/helloworld
   accessToken:
     secretKeyRef:
       name: mysecrets
@@ -834,22 +864,23 @@ spec:
     name: rebuild
 ```
 
-Walking through the fields:
-- `eventTypes`: specifies which Github events we're interested in. In this
-  case we just need `push` but for fun/testing I also include `issues`
-- `ownerAndRepository`: the repo org and name
-- `acessToken`: this is the [Github Personal Access
-  Token](https://github.com/settings/tokens). Knative needs this to setup
-  the webhook
-- `secretToken`: is the secret token you want the events from Github to use
-  to verify they're authenticated with your Knative subscription. This can
-  basically be any random string you want
-- `sink`: this is the link to our `rebuild` service. This field holds
-  the destination for the incoming events. It could be a service (Knative
-  or Kube), or it could be a Knative Channel - which I don't cover in this
-  demo.
+Walking through this:
+- you'll see the types of events (push and issues) that we're asking for.
+  We technically only need 'push' and for fun I asked for 'issue' related
+  event too.
+- the `ownerAndRepository` property tells it which git repo to subscribe to.
+- the `accessToken` contains the credentials needed for it to talk to Github
+  for me - and it gets those credentials from the Kubernetes secret referenced
+  in there.
+- `secretToken` is just the auth token we expect Github to use on the events
+  to us so we can verify they're actually related to this subscription/webhook.
+- And finally, we provide a `sink` which is there the event should be sent to.
+  Which in this case is our 'rebuild' service.
 
-With that, let's create it:
+Technically, we could have done of this ourselves, but this just makes it
+easier. And when we delete this resource it'll delete the webhook for us too.
+
+Let's deploy it:
 
 ```
 $ ./kapply github.yaml
@@ -864,219 +895,266 @@ listed in there for it - and it should look something like this:
 Don't be surprised if the green check is actually a red "X", sometimes
 the first (a verification message) has issues.
 
-With that, we should be all set to test it!
+#### Editing Our App
 
-If you modify
-[`helloworld.go`](https://github.com/duglin/helloworld/blob/master/helloworld.go)
-and push it to the `master` branch it should
-initiate the workflow. In this case I'm going to modify the line in there:
+With that infrastructure ready, let's edit our app and see it all in action.
+
+In your favorite editor, edit the "Hello World" message to something else.
+Or just run this command:
+
 ```
-text := "Hello World!"
-```
-to be:
-```
-text := "Now is the time for all good..."
+$ sed -i "s/text :=.*/text := \"Dogs rule!! Cats drool!!\"/" helloworld.go
 ```
 
-And then add/push it:
+Then let's commit it and push it to github:
+
 ```
 $ git add helloworld.go
-$ git commit -m "my demo fun"
+
+$ git commit -s -m "demo - Fri Aug 2 07:39:39 PDT 2019"
+[master 2173aed] demo - Fri Aug  2 07:39:39 PDT 2019
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
 $ git push origin master
+To git@github.com:duglin/helloworld.git
+   6b580c0..2173aed  master -> master
 ```
 
-In the `./pods` window you should see something like this:
+The entire build process takes about 30 seconds, but in your "pods" window
+you should see the "rebuild" and "githubsource" pods appear, as well as some
+"build" pod. Eventually a new revision pod for the service should appear too.
+
+If you `curl` the "helloworld-test" revision (via the special URL setup
+under the Traffic section), you should see something like this:
 
 ```
-Cluster: kndemo
-K_SVC_NAME                     LATESTREADY                    READY
-githubsource-b5skr             githubsource-b5skr-s824d       True
-helloworld                     helloworld-p8c2v               Unknown
-rebuild                        rebuild-s824d                  True
 
-POD_NAME                                                STATUS           AGE
-githubsource-b5skr-s824d-deployment-bfdc64c6f-x7dz8     Running          49s
-helloworld-p8c2v-deployment-5769dd7756-q5d7j            Running          37s
-helloworld-7vh75-pod-6b8b9b                             Init:2/3         25s
-rebuild-s824d-deployment-849cb99967-rnwsf               Running          43s
+$ curl -sf http://helloworld-helloworld-test-default.v06.us-south.containers.appdomain.cloud
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+hwwx2: Dogs rule!! Cats drool!! Goodnight Moon!
 ```
 
-Since the `github` and `rebuild` actions are both Knative service you'll
-see them listed in the top section, and when
-the Github event came into our cluster instances of those services were spun
-up, if not
-already running. Notice the `helloworld-7vh75-pod-6b8b9b` pod. That's the
-build pod for revision 3 (the next version) of our app.
+Notice that it will show v2 of the app until the re-deploy is done and then
+all traffic will switch over the latest version. Keep in mind, this is
+only what the special "helloworld-test" URL will see because that's the only
+one pointing to the latest version of the app.
 
-Eventually, that pod will go away and you should see a new "deployment"
-pod show up, which is our new version of the app running and ready to be
-hit:
+Likewise, we could also hit just v1 or v2 directly:
 
 ```
-$ curl -sf helloworld-default.kndemo.us-south.containers.appdomain.cloud
-7vh75: Now is the time for all good...
+$ curl -sf http://helloworld-helloworld-v1-default.v06.us-south.containers.appdomain.cloud
+v1: Hello World!
+
+$ curl -sf http://helloworld-helloworld-v2-default.v06.us-south.containers.appdomain.cloud
+v2: Hello World! Goodnight Moon!
 ```
 
-There ya go! Notice it say "7vh75" not "p8c2v", and shows our new text instead
-of `Hello World!`.
+The main URL for the app is still routing traffic between v1 and v2.
 
-Save the revision name you see, you'll need that in the next section.
-
-
-### A/B Testing
-
-That's all ok, but notice it rolled out the new version of app and totally
-replaced the existing running version. In a more real-world scenario we'd
-probably want to roll it out more slowly. To do that, we're going to
-actually do a "rollback" to a previous revision.
-
-Let's look at the
-[`service-patch.json`](https://github.com/duglin/helloworld/blob/master/service-patch.json)
-file we're going to use to do that:
+To prove that run this:
 
 ```
-[{"op":"replace",
-  "path":"/spec",
-  "value": {
-    "release": {
-      "revisions": [ "@latest", "helloworld-${PREVIOUS}" ],
-      "rolloutPercent": 10,
-      "configuration": {
-        "build": {
-          "apiVersion": "build.knative.dev/v1alpha1",
-          "kind": "Build",
-          "metadata": {
-            "annotations" : {
-              "trigger": "15"
-            }
-		  },
-          "spec": {
-            "serviceAccountName": "build-bot",
-            "source": {
-              "git":{
-                "revision": "master",
-                "url": "https://github.com/duglin/helloworld"
-              }
-            },
-            "template": {
-              "name": "kaniko",
-              "arguments": [ {
-                "name": "IMAGE",
-                "value": "index.docker.io/duglin/helloworld"
-              }]
-            }
-          }
-		},
-        "revisionTemplate": {
-          "spec": {
-            "container": {
-              "image": "duglin/helloworld"
-            },
-            "containerConcurrency": 1
-          }
-        }
-      }
-    }
-  }
-}]
+$ for i in `seq 1 20` ; do curl -s http://helloworld-default.v06.us-south.containers.appdomain.cloud ; done
+v1: Hello World!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v1: Hello World!
+v1: Hello World!
+v1: Hello World!
+v2: Hello World! Goodnight Moon!
+v1: Hello World!
+v1: Hello World!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v1: Hello World!
+v2: Hello World! Goodnight Moon!
+v2: Hello World! Goodnight Moon!
+v1: Hello World!
+v2: Hello World! Goodnight Moon!
+v1: Hello World!
+v1: Hello World!
 ```
 
-This will replace the service's `spec` section, which has `runLatest` property,
-with a `release` instead. This type of Service configuration sets up a
-rolling upgrade mechanism. Notice in the `revisions` property we list
-two revision names, `@latest` and `${PREVIOUS}`. The first one in the list
-indicates what the "currently running" revision should be.
-The second item in the list is the revision we want to "rollout" to, which
-in this case is the previous version, p8c2v. If you're doing this manually
-you'll need to replace it with the value you were told to save from above.
-The `revisionTemplate` section remains unchanged.
+Notice that we never see the latet version that talks about dogs and cats.
 
-Also notice that the `rolloutPercent` tells the system to only send 10%
-of the incoming traffic to the "candidate" revision, meaning p8c2v. The idea
-is that we'd slowly increase that over time and eventually replace the
-`revisions` array with just one value - the "candidate" value, or p8c2v in
-our scenario.
+#### Scary!
 
-So, let's apply the patch:
+Now, just to show you how much Knative has saved us with respect to managing
+Kubernetes resources, let's run `showresources` again:
 
 ```
-$ ./kapply -p ksvc/helloworld service-patch.json
-service.serving.knative.dev/helloworld patched
+$ ./showresources all
+deployment.apps/githubsource-7bk5d-24srp-deployment
+deployment.apps/helloworld-9frrr-deployment
+deployment.apps/helloworld-hwwx2-deployment
+deployment.apps/helloworld-v1-deployment
+deployment.apps/helloworld-v2-deployment
+deployment.apps/rebuild-xkdrt-deployment
+endpoint/githubsource-7bk5d-24srp
+endpoint/githubsource-7bk5d-24srp-metrics
+endpoint/githubsource-7bk5d-24srp-priv
+endpoint/helloworld-9frrr
+endpoint/helloworld-9frrr-metrics
+endpoint/helloworld-9frrr-priv
+endpoint/helloworld-hwwx2
+endpoint/helloworld-hwwx2-metrics
+endpoint/helloworld-hwwx2-priv
+endpoint/helloworld-v1
+endpoint/helloworld-v1-metrics
+endpoint/helloworld-v1-priv
+endpoint/helloworld-v2
+endpoint/helloworld-v2-metrics
+endpoint/helloworld-v2-priv
+endpoint/kubernetes
+endpoint/rebuild-xkdrt
+endpoint/rebuild-xkdrt-metrics
+endpoint/rebuild-xkdrt-priv
+pod/build-helloww94q-pod-50369b
+pod/githubsource-7bk5d-24srp-deployment-ffb59c865-6wq5g
+pod/helloworld-hwwx2-deployment-7d7df9558c-wl55z
+pod/helloworld-v1-deployment-6bfbd447c-5wm8m
+pod/helloworld-v2-deployment-77bbc9d98c-9jn8g
+pod/rebuild-xkdrt-deployment-7b5c4648c6-v2pxk
+replicaset.apps/githubsource-7bk5d-24srp-deployment-ffb59c865
+replicaset.apps/helloworld-9frrr-deployment-65b66d976d
+replicaset.apps/helloworld-hwwx2-deployment-7d7df9558c
+replicaset.apps/helloworld-v1-deployment-6bfbd447c
+replicaset.apps/helloworld-v2-deployment-77bbc9d98c
+replicaset.apps/rebuild-xkdrt-deployment-7b5c4648c6
+service/githubsource-7bk5d
+service/githubsource-7bk5d-24srp
+service/githubsource-7bk5d-24srp-metrics
+service/githubsource-7bk5d-24srp-priv
+service/helloworld
+service/helloworld-9frrr
+service/helloworld-9frrr-metrics
+service/helloworld-9frrr-priv
+service/helloworld-helloworld-test
+service/helloworld-helloworld-v1
+service/helloworld-helloworld-v2
+service/helloworld-hwwx2
+service/helloworld-hwwx2-metrics
+service/helloworld-hwwx2-priv
+service/helloworld-v1
+service/helloworld-v1-metrics
+service/helloworld-v1-priv
+service/helloworld-v2
+service/helloworld-v2-metrics
+service/helloworld-v2-priv
+service/kubernetes
+service/rebuild
+service/rebuild-xkdrt
+service/rebuild-xkdrt-metrics
+service/rebuild-xkdrt-priv
+taskrun.tekton.dev/build-helloww94q
+
+clusterchannelprovisioner.eventing.knative.dev/in-memory
+clusteringress.networking.internal.knative.dev/route-42b0f459-578b-4fbe-845c-90017af34a74
+clusteringress.networking.internal.knative.dev/route-7422c2f8-9359-4f58-a858-af21a24d8fa3
+clusteringress.networking.internal.knative.dev/route-752e3da4-e6f2-42fb-aae3-cb885ab55a36
+configuration.serving.knative.dev/githubsource-7bk5d
+configuration.serving.knative.dev/helloworld
+configuration.serving.knative.dev/rebuild
+githubsource.sources.eventing.knative.dev/githubsource
+image.caching.internal.knative.dev/githubsource-7bk5d-24srp-cache
+image.caching.internal.knative.dev/helloworld-9frrr-cache
+image.caching.internal.knative.dev/helloworld-hwwx2-cache
+image.caching.internal.knative.dev/helloworld-v1-cache
+image.caching.internal.knative.dev/helloworld-v2-cache
+image.caching.internal.knative.dev/rebuild-xkdrt-cache
+podautoscaler.autoscaling.internal.knative.dev/githubsource-7bk5d-24srp
+podautoscaler.autoscaling.internal.knative.dev/helloworld-9frrr
+podautoscaler.autoscaling.internal.knative.dev/helloworld-hwwx2
+podautoscaler.autoscaling.internal.knative.dev/helloworld-v1
+podautoscaler.autoscaling.internal.knative.dev/helloworld-v2
+podautoscaler.autoscaling.internal.knative.dev/rebuild-xkdrt
+revision.serving.knative.dev/githubsource-7bk5d-24srp
+revision.serving.knative.dev/helloworld-9frrr
+revision.serving.knative.dev/helloworld-hwwx2
+revision.serving.knative.dev/helloworld-v1
+revision.serving.knative.dev/helloworld-v2
+revision.serving.knative.dev/rebuild-xkdrt
+route.serving.knative.dev/githubsource-7bk5d
+route.serving.knative.dev/helloworld
+route.serving.knative.dev/rebuild
+serverlessservice.networking.internal.knative.dev/githubsource-7bk5d-24srp
+serverlessservice.networking.internal.knative.dev/helloworld-9frrr
+serverlessservice.networking.internal.knative.dev/helloworld-hwwx2
+serverlessservice.networking.internal.knative.dev/helloworld-v1
+serverlessservice.networking.internal.knative.dev/helloworld-v2
+serverlessservice.networking.internal.knative.dev/rebuild-xkdrt
+service.serving.knative.dev/githubsource-7bk5d
+service.serving.knative.dev/helloworld
+service.serving.knative.dev/rebuild
 ```
 
-To see this rollout, we'll need to geneate some load. Make sure you've
-built the `load` tool (`make load`):
+That's a ton of stuff we'd have to manage ourselves!
 
-```
-$ ./load 10 30 http://helloworld-default.kndemo.us-south.containers.appdomain.cloud
-```
+#### Tekton
 
-What you should see is something like this:
-```
-01: 7vh75: Now is the time for all good...
-02: 7vh75: Now is the time for all good...
-03: 7vh75: Now is the time for all good...
-04: 7vh75: Now is the time for all good...
-05: p8c2v: Hello World!
-06: 7vh75: Now is the time for all good...
-07: 7vh75: Now is the time for all good...
-08: 7vh75: Now is the time for all good...
-09: 7vh75: Now is the time for all good...
-10: 7vh75: Now is the time for all good...
-```
+I didn't talk about how the build of the app itself is done, and I won't go
+into too many details other than to say it uses [tekton](https://tekton.dev)
+under the covers.
+
+You can think of Tekton in the same light as a Jenkins system. It will run
+a set of steps that you tell it. And if you look at [task.yaml](./task.yaml)
+you'll see the yaml file that defines those steps. In this case, it's just
+two steps
+1 - run a container called `kaniko-project/executor` that will do a Docker
+     build and push the resulting image to a container registry
+2 - issue a curl command (via the `duglin/curl` container) to poke the
+    rebuild service so it knows when the new image is ready so it can
+    deploy the next version of the service
+
+Ideally, I would have preferred to make it so that the "rebuild" service
+got a real event from DockerHub directly when the push happened so that I
+didn't have to do the `curl` command, but there is no DockerHub importer
+yet - but maybe one day.
+
+There are also some niceties in there, like by specifying an input as a
+github repo it'll do the clone for me automatically. Which is kind of nice.
+
+The intersting thing about this to me is that I still can't quite decide
+how Tekton will be used. By that I mean, will people create tasks with lots
+of individual steps (similar to the steps they might see in a Makefile),
+or will the steps be fairly large which would results in a relatively small
+number of them in each job.
+
+I also wonder if most jobs will end up being close to just one step, and
+people will encode a ton of logic into there - more like just wrappering
+your `make` command in a container. And if so, it'll be interesting to see
+where people see the benefit of Tekton vs just running the container
+directly.
 
 ## Summary
 
 With that we're run through a pretty extensive demo. To recap, we:
-- deployed a pre-built container image as a Knative service
-- added logic to that Service definition so Knative could build it for us
-- added a "trigger" mechanism so that as changes are made in our github
-  repo, that build logic would happen automatically
-- performed a slow rolling upgrade between two versions of our app
-
-AND, notice that aside from initial setup, we pretty much did all of that
-via one resource definition.
-
-Now, some things that we glossed over...
-
-During the rolling upgrade we listed some revision names in the the
-`revisions` array. That's ok when you know exactly which revisions you
-want to deploy but as things change you won't want to continually update
-those values. There's work underway to allow you to put special names
-in there to mean "current" or "next" - and the system will just know what
-revision names/numbers to use. So that will help a lot.
-
-However, the names given to the revisions are machine generated and as such
-I don't think are very useful for end-users. While I doubt we want to require
-people to name each and every revisions, it would be nice if there was some
-way for the user to "tag" a revision so they can easily reference it later.
-It would also be a nice way of saying "this one is special and I might need
-to reference it again later". For example, if it's an official release.
-
-One thing I didn't get into was that you can make changes to the
-`revisionTemplate` in the Service and as you do new revisions of your
-app will be created. When you're using the `release` type of Service though
-those edits apply to the "candidate" revisions you're slowly rolling out
-to. In some ways this is nice because it's a convenient way to incrementally
-rollout changes. However, it seems to make it harder for someone to know
-exactly what is running in the system.
-
-For example, there's no easy way
-(via the `Service` resource) to see the configuration for the current and
-candidate revisions side-by-side to see what's going on. Right now you'd have
-to go and track down the Revision resources and look at those. It seems
-to me that it would be easier for people to understand the state of the
-system if they could not only see but define for the entire definition of the
-Service and all of its currently running revisions at one time. This would
-also allow them to specify more than 2 at a time - and what percentage of
-the traffic should go to each one. The idea that there's only ever going to
-be two revisions of the same app at one time feels a bit limiting to me.
+- deployed a pre-built container image as a Knative service, but via
+  `kn` and `kubectl`
+- showed how to create multiple version of the service and route traffic
+  to each based on a percentage.
+- showed how to create an event "importer" to subscribe to an event producer
+  and have those events sent on to a Knative service
+- showed how to bring it all together to have a mini CI/CD pipeline
+  that will build and redeploy our sevice as we make changes to its
+  github repo
 
 However, overall what's out there today is a HUGE useability improvement
 for developers. The idea of being able to create and manipulate the Kubernetes
 resource to do all of these (what I consider) advanced semantics is really
 very exciting, and I can't wait to see how things progress.
-
 
 ## Cleaning up
 
