@@ -585,15 +585,16 @@ spec:
 
 You should notice 2 main differences here:
 
-1 - `spec.template.metadata.name`: This is different from the Service
-    name you'll see above on the 4th line. This provides a name for **this**
-	revision of your service. We're going to provide a name so that we can
-	reference it in the `traffic` section below.
-2 - `spec.traffic`: This section allows for us to tell Knative how to
-    route traffic between the various versions (revisions) of our
-	Service. This is useful when you want to do a rolling (A/B) update
-	of your service rather than switch all traffic to the new version
-	immediately.
+- `spec.template.metadata.name`: This is different from the Service
+  name you'll see above on the 4th line. This provides a name for **this**
+  revision of your service. We're going to provide a name so that we can
+  reference it in the `traffic` section below.
+
+- `spec.traffic`: This section allows for us to tell Knative how to
+  route traffic between the various versions (revisions) of our
+  Service. This is useful when you want to do a rolling (A/B) update
+  of your service rather than switch all traffic to the new version
+  immediately.
 
   In this case we're defining just one `traffic` section and telling
   Knative to send all (100%) of the traffic to the revision called
