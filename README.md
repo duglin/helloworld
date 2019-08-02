@@ -9,9 +9,10 @@ for how to run the demo on older versions.
 This repo contains the source code, tools and instructions for a demo that
 shows using Knative on the
 [IBM Cloud Kubernetes Service](https://cloud.ibm.com). You can pretty easily
-convert it to work on other platforms. The main reasons behind this
-are:
-- showcase the basic os Knative so you can jump-start your usage of it
+convert it to work on other platforms.
+
+The main reasons behind this are:
+- showcase the basics of Knative so you can jump-start your usage of it
 - showcase some of the newer features of Knative, meaning this demo will
   grow over time as new features are added to Knative
 - to share my experiences during this exercise
@@ -50,7 +51,7 @@ part of the demo we will be updating some files and pushing them back to
 Github to demonstrate how to build new container images as your source code
 changes.
 
-Once you're cloned the repo, you'll need to create a `.secrets` file in
+Once you've cloned the repo, you'll need to create a `.secrets` file in
 the root of the clone directory that looks like this:
 
 ```
@@ -81,7 +82,7 @@ Note: in order to run this demo you'll need a cluster with at least 3
 worker nodes in it. As of now this means that you can not use a free-tier
 cluster.
 
-Clearly, we first need a Kubernetes cluster. And, I've automated this
+To help with the process of creating a Kubernetes cluster, I've automated this
 via the `mkcluster` script in the repo. The script assumes you're using the
 Dallas data center, so if not you'll need to modify it.
 
@@ -138,7 +139,7 @@ Istio already installed - worst case, it'll upgrade it for you.
 Since Knative is still very much a work-in-progress, and while the IKS
 team will try to keep up with the latest versions, if you happen to catch
 things at a time when the IKS install of Knative is behind the latest
-version, just follow
+version, and you want the very latest version just follow
 [these instructions](https://github.com/knative/docs/blob/master/install/Knative-with-IKS.md)
 for how to install the latest Knative manually.
 
@@ -162,7 +163,7 @@ kube-system          Active   39h
 ```
 
 When you see the `istio-system` and the `knatve-...` ones appear then
-you're almost done. Press control-C to stop the watch
+you're almost done. Press control-C to stop the watch.
 
 Next, check to see if all of the pods are running. I find it easiest
 to just see if there are any pods that are not running, via this:
@@ -172,7 +173,7 @@ $ kubectl get pods --all-namespaces | grep -v Running
 ```
 
 And if that list is empty, or only shows non-Istio and non-Knative pods
-(due to other things running in your cluster) then you should be go to go.
+(due to other things running in your cluster) then you should be good to go.
 If the list isn't empty, then give it more time for things to initialize.
 
 ## Running the demo
@@ -249,7 +250,6 @@ metadata:
 secrets:
 - name: mysecrets
 
-
 ---
 # Give our "default" ServiceAccount permission to touch Knative Services
 apiVersion: rbac.authorization.k8s.io/v1
@@ -289,7 +289,7 @@ me to share my yaml with you w/o asking you to modify these files and run
 the risk of you checking them into your github repo by mistake. All you need
 to do is create the `.secrets` files I mentioned previously.
 
-The you can create the secret via:
+Then you can create the secret via:
 
 ```
 $ ./kapply secrets.yaml
@@ -347,7 +347,7 @@ func main() {
 The `sleep` is in there just to slow things down a bit so that when we
 increase the load on the app it'll cause one instance of the app to be
 created for each client we have generating requests. It makes for a better
-live demo experience :-)
+live demo experience.
 
 The app will print part of the `K_REVISION` environment variable so
 we can see which revision number of our app we're hitting.
@@ -384,14 +384,14 @@ Service URL:
 http://helloworld-default.v06.us-south.containers.appdomain.cloud
 ```
 
-As should be clear from the first two arguments this `kn` command is creating
+As should be clear from the first two arguments, this `kn` command is creating
 a service. The next argument is the service name (`helloworld`) and
 then we give it the name/location of the container image to use.
 
 Once the command is done, you'll see that it shows you the URL where the
 service is available. IKS will automatically configure the networking
 infrastructure for you and give you a nice DNS name so you don't need
-to do anything of that yourself.
+to do any of that yourself.
 
 With that URL you can now hit (curl) it:
 
@@ -481,9 +481,9 @@ Let's explain what some of these fields do:
 - `metadata.name`: Like all Kube resources, this names our Service, and
   matches what we put on the `kn` command line.
 - `spec.template`: One concept that might take some getting used to is the
-  notion that the `spec` section of a Knative Service resource doesn't really
-  define the Service itself directly. The better way to think of it is that
-  you provide it a "template" for what the next version (revision) of your
+  notion that the `spec.template` section of a Knative Service resource doesn't
+  really define the Service itself directly. The better way to think of it is
+  that you provide it a "template" for what the next version (revision) of your
   service should look like. While in practice, yes the `spec.template` will
   normally match what the service currently looks like, it may be important
   at times to understand that behind the scenes each version of your service
@@ -495,15 +495,15 @@ Let's explain what some of these fields do:
   spec defintion. Meaning, you can put anything from the Pod spec in here
   to define your app. However, while from a syntax perspective you should
   be able to copy-n-paste your Pod spec into here, since Knative doesn't
-  support all of the Pod's features you may get an error messagei in
-  some cases.
+  support all of the Pod's features you may get an error message in
+  some cases if you use a feature that Knative doesn't support yet.
 - `spec.template.spec.containers.image`: This just defines which container
   image this version of the Service should use.  Same as what we saw on
   the `kn` command line.
 
-For the most part you'll see that there really is only 2 pieces of information
+For the most part you'll see that there really are only 2 pieces of information
 in here - the service name and the image name. Same as the `kn` command line.
-There's just more yaml because, well, it's yaml and Kubernetes :-)
+There's just more yaml because, well, it's yaml and Kubernetes.
 
 Now we can deploy it:
 
@@ -535,7 +535,7 @@ called something like `helloworld-9frrr`, and a pod with a really funky name
 but that starts with that revision name.
 
 Notice the word "deployment" in there - that's because under the covers
-Knative create a Kubernetes Deployment resource and this pod is related
+Knative created a Kubernetes Deployment resource and this pod is related
 to that Deployment.
 
 So, it's running - let's invoke it, and we can use the same URL as before
@@ -584,24 +584,25 @@ spec:
 ```
 
 You should notice 2 main differences here:
+
 1 - `spec.template.metadata.name`: This is different from the Service
-    name you'll see above. This provides a name for **this** revision
-    of your service. We're going to provide a name so that we can
+    name you'll see above on the 4th line. This provides a name for **this**
+	revision of your service. We're going to provide a name so that we can
 	reference it in the `traffic` section below.
 2 - `spec.traffic`: This section allows for us to tell Knative how to
     route traffic between the various versions (revisions) of our
 	Service. This is useful when you want to do a rolling (A/B) update
-	of your sevice rather than to switch all traffic to the new version
+	of your service rather than switch all traffic to the new version
 	immediately.
 
-	In this case we're defining just one `traffic` section and telling
-	Knative to send all (100%) of the traffic to the revision called
-	`helloworld-v1` - which is what we're naming the new revision.
-	You'll notice there's `tag` property too - this allows us to give
-	a unique prefix to a specialize URL for just that one revision if
-	you want to send request directly to it and avoid the percentage
-	based routing logic. In this case, to keep it simple, we picked the
-	same name as the revision.
+  In this case we're defining just one `traffic` section and telling
+  Knative to send all (100%) of the traffic to the revision called
+  `helloworld-v1` - which is what we're naming the new revision.
+  You'll notice there's `tag` property too - this allows us to give
+  a unique prefix to a specialize URL for just that one revision if
+  you want to send request directly to it and avoid the percentage
+  based routing logic. In this case, to keep it simple, we picked the
+  same name as the revision.
 
 Once final thing, there's also now `containerConcurrency` property in
 there. We're setting that to `1` so that each instance of the service will
@@ -1148,7 +1149,7 @@ With that we're run through a pretty extensive demo. To recap, we:
 - showed how to create an event "importer" to subscribe to an event producer
   and have those events sent on to a Knative service
 - showed how to bring it all together to have a mini CI/CD pipeline
-  that will build and redeploy our sevice as we make changes to its
+  that will build and redeploy our service as we make changes to its
   github repo
 
 However, overall what's out there today is a HUGE useability improvement
