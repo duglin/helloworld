@@ -621,7 +621,7 @@ service.serving.knative.dev/helloworld configured
 In the "pods" window you should see something like this:
 
 ```
-$ ./pods --grep helloworld-v1.*Running
+$ ./pods
 Cluster: v06
 NS/NAME                        LATESTREADY                    READY
 helloworld                     helloworld-v1                  True
@@ -640,7 +640,7 @@ $ curl -sf http://helloworld-default.v06.us-south.containers.appdomain.cloud
 v1: Hello World!
 ```
 
-Notice we use the same URL but now the version number on the putput shows
+Notice we use the same URL but now the version number on the output shows
 `v1`.
 
 #### Traffic Splitting
@@ -680,8 +680,8 @@ Couple of things to notice here:
   allows us to see some different output when we hit this version.
 - We've modified the `traffic` section so that we now have two
   versions of the app that will get traffic. Each gets 50% and the two
-  versions are the v1 and v2 versions - the initial version we deployed
-  will eventually be removed from the system since we never refernce it
+  versions are the v1 and v2 versions. The initial version we deployed
+  will eventually be removed from the system since we never reference it
   in a traffic section.
 
 Let's deploy this:
@@ -709,7 +709,7 @@ $ ./load 10 10 http://helloworld-default.v06.us-south.containers.appdomain.cloud
 10: v2: Hello World! Goodnight Moon!                                            
 ```
 
-The `load` command (as specified) will simulate 10 clinets hitting the URL
+The `load` command (as specified) will simulate 10 clients hitting the URL
 for 10 seconds. Notice we do in fact see both versions getting hit.
 
 #### Hidden Traffic
@@ -749,17 +749,17 @@ spec:
 
 Here we didn't modify anything about the `template` but we did add a new
 `traffic` section. In there we told Knative a couple of things. First,
-we gave it a name via the `tag` - `helloworld-test`. As before this is
-just some unique name for a dedicated URL we can use to talk to the revision
+we gave it a name via the `tag` - `helloworld-test`. As before, this is
+just some unique prefix for a dedicated URL we can use to talk to the revision
 pointed to by this traffic section. Next, the `latestRevision` property.
-If we have a name of a version we wanted to refernce we could have put
+If we have a name of a version we wanted to reference we could have put
 that name on `revisionName` property, but in this case we're asking
 Knative to make this traffic section point to the very latest version
 of the app regardless of what its name is.
 
 Finally, we told Knative to send no traffic (`0` percent)
 to this version we're pointing to. This means that when people hit our main
-URL they'll never talk to this revision. The only want we can talk to this
+URL they'll never talk to this revision. The only way we can talk to this
 one is via the dedicated URL that Knative will setup for us. One thing
 to note is that as of right now the "latest" version of the app just
 happens to be "v2" so both the 2nd and 3rd traffic sections actually
@@ -790,7 +790,7 @@ of the source, build a new container image and the deploy a new version of
 our app using that image.
 
 I'm not going to get into how the "rebuild" service works, but if you
-really want to see it you can look at the source code
+really want to see it you can look at the source code:
 [rebuild.go](./rebuild.go).
 
 To deploy it we'll apply this yaml:
@@ -815,7 +815,7 @@ spec:
 ```
 
 You'll notice that we pass in some environment variables telling it which
-git repo to accept events from, which Knative service to update, and
+git repo to get the source from, which Knative service to update, and
 where to store the built image.
 
 Let's execute that:
@@ -835,7 +835,7 @@ to the importer, who will then pass it on to our rebuild service.
 
 One thing I need to mention, the event that is passed on to the Knative
 service is a [CloudEvent](https://cloudevents.io). All that means is that
-some common metadata about the event (such as who sent it or what it's
+some common metadata about the event (such as who sent it or what its
 `type` is) are in well-defined locations so that regardless of who the
 event producer is, your code should be able to get that information by
 just looking at one specific location. Just to make life a little easier.
@@ -850,7 +850,6 @@ metadata:
 spec:
   eventTypes:
     - push
-    - issues
   ownerAndRepository: duglin/helloworld
   accessToken:
     secretKeyRef:
@@ -867,16 +866,15 @@ spec:
 ```
 
 Walking through this:
-- you'll see the types of events (push and issues) that we're asking for.
-  We technically only need 'push' and for fun I asked for 'issue' related
-  event too.
+- you'll see the types of events (`push`) that we're asking for.
 - the `ownerAndRepository` property tells it which git repo to subscribe to.
 - the `accessToken` contains the credentials needed for it to talk to Github
   for me - and it gets those credentials from the Kubernetes secret referenced
   in there.
 - `secretToken` is just the auth token we expect Github to use on the events
-  to us so we can verify they're actually related to this subscription/webhook.
-- And finally, we provide a `sink` which is there the event should be sent to.
+  sent to us so we can verify they're actually related to this
+  subscription/webhook.
+- And finally, we provide a `sink` which is where the event should be sent to.
   Which in this case is our 'rebuild' service.
 
 Technically, we could have done of this ourselves, but this just makes it
@@ -1107,18 +1105,20 @@ That's a ton of stuff we'd have to manage ourselves!
 #### Tekton
 
 I didn't talk about how the build of the app itself is done, and I won't go
-into too many details other than to say it uses [tekton](https://tekton.dev)
+into too many details other than to say it uses [Tekton](https://tekton.dev)
 under the covers.
 
 You can think of Tekton in the same light as a Jenkins system. It will run
 a set of steps that you tell it. And if you look at [task.yaml](./task.yaml)
 you'll see the yaml file that defines those steps. In this case, it's just
 two steps
-1 - run a container called `kaniko-project/executor` that will do a Docker
-     build and push the resulting image to a container registry
-2 - issue a curl command (via the `duglin/curl` container) to poke the
-    rebuild service so it knows when the new image is ready so it can
-    deploy the next version of the service
+
+- run a container called `kaniko-project/executor` that will do a Docker
+  build and push the resulting image to a container registry
+
+- issue a curl command (via the `duglin/curl` container) to poke the
+  rebuild service so it knows when the new image is ready so it can
+  deploy the next version of the service
 
 Ideally, I would have preferred to make it so that the "rebuild" service
 got a real event from DockerHub directly when the push happened so that I
@@ -1153,7 +1153,7 @@ With that we're run through a pretty extensive demo. To recap, we:
   that will build and redeploy our service as we make changes to its
   github repo
 
-However, overall what's out there today is a HUGE useability improvement
+Overall, what's out there today is a HUGE useability improvement
 for developers. The idea of being able to create and manipulate the Kubernetes
 resource to do all of these (what I consider) advanced semantics is really
 very exciting, and I can't wait to see how things progress.
