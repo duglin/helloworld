@@ -19,7 +19,7 @@ useSaved="$USESAVED"
 trap clean EXIT
 
 function clean {
-    rm -f out
+    rm -f out cmds
 }
 
 if [[ "${useSaved}" != "" && "${useSaved}" != "2" && ! -e "${saveTar}" ]]; then
@@ -307,10 +307,14 @@ function doit() {
 
 function background() {
     echo -n $bold"$"$normal" "
+    pause
     slowType $*
     echo "$*" >> cmds
+    pause
     echo
-    bash -c " $* " &
+    if [[ "$useSaved" == "" ]]; then
+        bash -c " $* " &
+    fi
 }
 
 function ttyDoit() {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,11 +14,24 @@ import (
 
 var outputs []string
 var screenMUX sync.Mutex
+var flatList bool = false
+var numClients = 10
+var duration = 10
+
+func Cursor(format string) {
+	if !flatList {
+		fmt.Printf(format)
+	}
+}
 
 func Status(index int, str string) {
 	screenMUX.Lock()
 	defer screenMUX.Unlock()
-	fmt.Printf("\033[%d;0H%s", 1+index, str)
+	Cursor(fmt.Sprintf("\033[%d;0H", 1+index))
+	fmt.Print(str)
+	if flatList {
+		fmt.Print("\n")
+	}
 }
 
 func generateLoad(index int, url string, dur time.Duration, wg *sync.WaitGroup) {
@@ -28,52 +42,64 @@ func generateLoad(index int, url string, dur time.Duration, wg *sync.WaitGroup) 
 	start := time.Now()
 	end := start.Add(dur)
 	for time.Now().Before(end) {
-		resp, err := http.Get(url)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error(%d): %s\n", index, err)
-			return
-		}
-		if resp.Body != nil {
-			out, _ := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-			// outputs[index] = strings.TrimSpace(string(out))
-			output := strings.TrimSpace(string(out))
-			// go Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
-			Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
-		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error(%d): %s\n", index, err)
-			return
-		}
-	}
-}
+		// resp, err := http.Get(url)
 
-func displayOutput() {
-	for {
-		fmt.Printf("\033[H")
-		for index, output := range outputs {
-			fmt.Printf("%02d: %-76s\n", 1+index, output)
+		resp, err := (&http.Client{
+			Timeout: time.Duration(5 * time.Second),
+		}).Get(url)
+
+		output := ""
+		pause := false
+		if resp != nil && resp.StatusCode > 299 {
+			output = resp.Status
+			pause = true
+		} else if err != nil {
+			if output = err.Error(); strings.HasPrefix(output, "Get") {
+				output = output[4+len(url):]
+			}
+			pause = true
+		} else if resp.Body != nil {
+			out, _ := ioutil.ReadAll(resp.Body)
+			output = strings.TrimSpace(string(out))
 		}
-		time.Sleep(500 * time.Millisecond)
+		if i := strings.IndexAny(output, "\n\r"); i >= 0 {
+			output = strings.TrimSpace(output[:i-1])
+		}
+
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+
+		if pause && index == 0 && numClients > 1 {
+			pause = false
+		}
+
+		// go Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
+		Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
+		if pause {
+			time.Sleep(10 * time.Second)
+		}
 	}
 }
 
 func main() {
-	if len(os.Args) != 4 {
+	flag.BoolVar(&flatList, "l", false, "List of output instead of fancy")
+	flag.Parse()
+
+	if flag.NArg() != 3 {
 		fmt.Fprintf(os.Stderr, "Usage: load num_of_requests duration URL\n")
 		os.Exit(1)
 	}
-	num, _ := strconv.Atoi(os.Args[1])
-	dur, _ := strconv.Atoi(os.Args[2])
-	url := os.Args[3]
-	outputs = make([]string, num)
+	numClients, _ = strconv.Atoi(flag.Arg(0))
+	duration, _ = strconv.Atoi(flag.Arg(1))
+	url := flag.Arg(2)
+	outputs = make([]string, numClients)
 	wg := sync.WaitGroup{}
-	fmt.Printf("\033[2J")
-	for i := 0; i < num; i++ {
+	Cursor("\033[2J")
+	for i := 0; i < numClients; i++ {
 		wg.Add(1)
-		go generateLoad(i, url, time.Duration(dur)*time.Second, &wg)
+		go generateLoad(i, url, time.Duration(duration)*time.Second, &wg)
 	}
-	// go displayOutput()
 	wg.Wait()
-	fmt.Printf("\033[%d;0H", 1+10)
+	Cursor(fmt.Sprintf("\033[%d;0H", 1+numClients))
 }
