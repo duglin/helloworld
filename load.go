@@ -15,6 +15,7 @@ import (
 var outputs []string
 var screenMUX sync.Mutex
 var flatList bool = false
+var timeout = 10
 var numClients = 10
 var duration = 10
 
@@ -45,7 +46,7 @@ func generateLoad(index int, url string, dur time.Duration, wg *sync.WaitGroup) 
 		// resp, err := http.Get(url)
 
 		resp, err := (&http.Client{
-			Timeout: time.Duration(5 * time.Second),
+			Timeout: time.Duration(time.Duration(timeout) * time.Second),
 		}).Get(url)
 
 		output := ""
@@ -70,20 +71,19 @@ func generateLoad(index int, url string, dur time.Duration, wg *sync.WaitGroup) 
 			resp.Body.Close()
 		}
 
-		if pause && index == 0 && numClients > 1 {
-			pause = false
-		}
-
 		// go Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
 		Status(index, fmt.Sprintf("%02d: %-76.76s", 1+index, output))
-		if pause {
-			time.Sleep(10 * time.Second)
+
+		// Don't pause the 1st client if there's more than one client
+		if pause && !(numClients > 1 && index == 0) {
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
 
 func main() {
 	flag.BoolVar(&flatList, "l", false, "List of output instead of fancy")
+	flag.IntVar(&timeout, "t", timeout, "HTTP client timeout")
 	flag.Parse()
 
 	if flag.NArg() != 3 {
